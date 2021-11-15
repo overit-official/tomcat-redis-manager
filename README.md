@@ -1,3 +1,5 @@
+[![CI](https://github.com/amodolo/tomcat-redis-manager/actions/workflows/maven-test.yml/badge.svg)](https://github.com/amodolo/tomcat-redis-manager/actions/workflows/maven-test.yml)
+
 # Redis Session Manager for Apache Tomcat
 
 ## Overview
