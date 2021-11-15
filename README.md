@@ -81,6 +81,7 @@ where `Manager` can be configured with the following additional parameters
   checks will occur). The minimum value is 1, and the default value is 6.</td>
     </tr>
 </table>
+
 Other manager parameters relevant to the session management can be found in the Tomcat's [documentation](https://tomcat.apache.org/tomcat-8.5-doc/config/manager.html).
 
 The `Store` tag can be configured as follows:
