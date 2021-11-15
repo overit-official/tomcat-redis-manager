@@ -14,5 +14,9 @@ jobs:
                     java-version: '11'
                     distribution: 'temurin'
                     cache: maven
+            -   name: Start Redis
+                uses: supercharge/redis-github-action@1.1.0
+                with:
+                    redis-version: 6
             -   name: Test with Maven
                 run: mvn -B test
