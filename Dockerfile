@@ -18,5 +18,7 @@ COPY src ./src
 COPY pom.xml .
 RUN mvn clean package -DskipTests
 
-FROM tomcat:8.5-jre11-temurin-focal
-COPY --from=build /tmp/target/redis-manager-*-shaded.jar $CATALINA_HOME/lib
+# FROM tomcat:8.5-jre11-temurin-focal
+FROM tomcat:9.0.52-jre11-temurin-focal
+# FROM tomcat:jdk11-adoptopenjdk-openj9
+COPY --from=build /tmp/target/tomcat-redis-manager-*-shaded.jar $CATALINA_HOME/lib
