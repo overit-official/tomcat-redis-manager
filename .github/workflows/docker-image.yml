@@ -13,12 +13,11 @@ jobs:
 
     steps:
     
-    - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
+    
     - name: Build the Docker image
       run: |
         TAG=$(echo $GITHUB_REF | cut -d / -f 3)
-        echo "tag: $TAG"
-        ls
-        pwd
-        docker build -t my-image-name:${TAG} .
+        docker build . --file ./Dockerfile --tag my-image-name:$TAG
  
