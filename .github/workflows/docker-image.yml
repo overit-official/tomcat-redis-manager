@@ -17,5 +17,8 @@ jobs:
     - name: Build the Docker image
       run: |
         TAG=$(echo $GITHUB_REF | cut -d / -f 3)
-        docker build . --file Dockerfile --tag my-image-name:$TAG
-     
+        echo "tag: $TAG"
+        ls
+        pwd
+        docker build -t my-image-name:${TAG} .
+ 
