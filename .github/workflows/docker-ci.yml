@@ -51,12 +51,15 @@ jobs:
         # if $INPUT_VERSION is equal to $TAG, no "v" prefix has beed set to the git tag, so exit with error
         [ "$INPUT_VERSION" != "$TAG" ] || exit 1
         SPLITTED=(${INPUT_VERSION//./ })
+
+        IS_NUM_REGEX="^[0-9]+$"
         
         # for each number of the version, remove eventual SNAPSHOT suffix and set to 0 if null
         for i in {0..2}
         do
            SPLITTED[$i]=`echo ${SPLITTED[$i]} | cut -d '-' -f 1`
-           [ "${SPLITTED[$i]}" != "" ] || SPLITTED[$i]=0 
+           [ "${SPLITTED[$i]}" != "" ] || SPLITTED[$i]=0
+           [[ SPLITTED[$i] =~ $IS_NUM_REGEX ]] || exit 1
         done
         
         MAJOR_TAG=${SPLITTED[0]}
