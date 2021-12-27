@@ -6,35 +6,36 @@ on:
       - 'v*' 
 
 jobs:
-  test:
+  mvn-build-test:
     runs-on: ubuntu-latest
     steps:
     
-    - name: Checkout sources
+    - name: Checkout to source code
       uses: actions/checkout@v2
       
-    - name: Set up JDK 11
+    - name: Set up JDK 11 for the tests
       uses: actions/setup-java@v2
       with:
         java-version: '11'
         distribution: 'temurin'
         cache: maven
         
-    - name: Start Redis
+    - name: Start Redis for the integration tests
       uses: supercharge/redis-github-action@1.1.0
       with:
         redis-version: 6
         
-    - name: Build and Test with maven
+    - name: Build and test with maven
       run: mvn install
 
-  build:
+  docker-build-push:
     runs-on: ubuntu-latest
+    needs: mvn-build-test
     steps:
-    
+
     - name: Checkout code
       uses: actions/checkout@v2
-      
+
     - name: Login to DockerHub
       uses: docker/login-action@v1
       with:
