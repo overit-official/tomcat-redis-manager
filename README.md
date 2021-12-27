@@ -4,7 +4,7 @@
 
 ## Overview
 
-This is a Tomcat session manager that saves sessions in Redis for easy distribution of requests across a cluster of
+This is a Tomcat session manager that saves sessions in Redis for an easy distribution of requests across a cluster of
 Tomcat servers. Obviously, data stored in the session must be Serializable.
 
 You can use this library as a dependency inside your project, or you can embed the shaded jar inside the `/lib` directory of the Tomcat.
