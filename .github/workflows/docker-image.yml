@@ -22,8 +22,40 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}   
     
-    - name: Build the Docker image
+    - name: Build and push the Docker image
       run: |
+        # examples of tag: v1, v1-SNAPSHOT, v1.4-SNAPSHOT, v1.4.5, v1.4.5-SNAPSHOT 
         TAG=$(echo $GITHUB_REF | cut -d / -f 3)
-        docker build . --file ./Dockerfile --tag my-image-name:$TAG
+        INPUT_VERSION=$(echo $TAG | cut -d 'v' -f 2)
+        
+        # if $INPUT_VERSION is equal to $TAG, no "v" prefix has beed set to the git tag, so exit with error
+        [ "$INPUT_VERSION" != "$TAG" ] || exit 1
+        SPLITTED=(${INPUT_VERSION//./ })
+        
+        # for each number of the version, remove eventual SNAPSHOT suffix and set to 0 if null
+        for i in {0..2}
+        do
+           SPLITTED[$i]=`echo ${SPLITTED[$i]} | cut -d '-' -f 1`
+           [ "${SPLITTED[$i]}" != "" ] || SPLITTED[$i]=0 
+        done
+        
+        MAJOR_TAG=${SPLITTED[0]}
+        MINOR_TAG=$MAJOR_TAG.${SPLITTED[1]}
+        PATCH_TAG=$MINOR_TAG.${SPLITTED[2]}
+
+        IMAGE_NAME=${{ secrets[env.DOCKER_USERNAME] }}/tomcat-redis-manager
+        
+        # ----------------------------------------
+        # git tag         -> docker tags
+        # ----------------------------------------
+        # v1              -> 1, 1.0, 1.0.0, latest
+        # v1-SNAPSHOT     -> 1, 1.0, 1.0.0, latest
+        # v1.2            -> 1, 1.2, 1.2.0, latest
+        # v1.2-SNAPSHOT   -> 1, 1.2, 1.2.3, latest
+        # v1.2.3-SNAPSHOT -> 1, 1.2, 1.2.3, latest
+        # ----------------------------------------
+        
+        docker build . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest
+
+        docker push --all-tags
  
