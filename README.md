@@ -10,7 +10,7 @@ Tomcat servers. Obviously, data stored in the session must be Serializable.
 You can use this library as a dependency inside your project, or you can embed the shaded jar inside the `/lib` directory of the Tomcat.
 
 
-> In this version only Tomcat 8.5 is supported, newer version of tomcat has not been tested yet.
+> In this version only Tomcat 8.5 is supported, newer versions of tomcat have not been tested yet.
 
 ## How to build
 
