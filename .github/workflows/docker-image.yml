@@ -57,5 +57,8 @@ jobs:
         
         docker build . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest
 
-        docker push --all-tags
+        docker push $IMAGE_NAME:$MAJOR_TAG
+        docker push $IMAGE_NAME:$MINOR_TAG
+        docker push $IMAGE_NAME:$PATCH_TAG
+        docker push $IMAGE_NAME:latest
  
