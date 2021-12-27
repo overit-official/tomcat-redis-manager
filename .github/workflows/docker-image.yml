@@ -43,7 +43,7 @@ jobs:
         MINOR_TAG=$MAJOR_TAG.${SPLITTED[1]}
         PATCH_TAG=$MINOR_TAG.${SPLITTED[2]}
 
-        IMAGE_NAME=${{ secrets[env.DOCKERHUB_USERNAME] }}/tomcat-redis-manager
+        IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/tomcat-redis-manager
         
         # ----------------------------------------
         # git tag         -> docker tags
