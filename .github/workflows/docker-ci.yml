@@ -3,10 +3,10 @@ name: Docker CI
 on:
   push:
     tags:
-      - 'v*' 
+      - 'v(?:(\d+)\.)?(?:(\d+)\.)?(\*|\d+)'
 
 jobs:
-  mvn-build-test:
+  mvn-test:
     runs-on: ubuntu-latest
     steps:
     
@@ -25,12 +25,12 @@ jobs:
       with:
         redis-version: 6
         
-    - name: Build and test with maven
-      run: mvn install
+    - name: Maven test
+      run: mvn -B test
 
   docker-build-push:
     runs-on: ubuntu-latest
-    needs: mvn-build-test
+    needs: mvn-test
     steps:
 
     - name: Checkout code
@@ -44,17 +44,14 @@ jobs:
     
     - name: Build and push the Docker image
       run: |
-        # examples of tag: v1, v1-SNAPSHOT, v1.4-SNAPSHOT, v1.4.5, v1.4.5-SNAPSHOT 
+        # examples of tag: v1, v1.4, v1.4.5
         TAG=$(echo $GITHUB_REF | cut -d / -f 3)
         INPUT_VERSION=$(echo $TAG | cut -d 'v' -f 2)
-        
-        # if $INPUT_VERSION is equal to $TAG, no "v" prefix has beed set to the git tag, so exit with error
-        [ "$INPUT_VERSION" != "$TAG" ] || exit 1
         SPLITTED=(${INPUT_VERSION//./ })
 
         IS_NUM_REGEX="^[0-9]+$"
         
-        # for each number of the version, remove eventual SNAPSHOT suffix and set to 0 if null
+        # for each number of the version, remove eventual SNAPSHOT, alpha, beta suffix and set to 0 if null
         for i in {0..2}
         do
            SPLITTED[$i]=`echo ${SPLITTED[$i]} | cut -d '-' -f 1`
@@ -67,21 +64,16 @@ jobs:
         PATCH_TAG=$MINOR_TAG.${SPLITTED[2]}
 
         IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/tomcat-redis-manager
-        
-        # ----------------------------------------
-        # git tag         -> docker tags
-        # ----------------------------------------
-        # v1              -> 1, 1.0, 1.0.0, latest
-        # v1-SNAPSHOT     -> 1, 1.0, 1.0.0, latest
-        # v1.2            -> 1, 1.2, 1.2.0, latest
-        # v1.2-SNAPSHOT   -> 1, 1.2, 1.2.3, latest
-        # v1.2.3-SNAPSHOT -> 1, 1.2, 1.2.3, latest
-        # ----------------------------------------
+
+        # examples of docker tag generation:
+        # | git tag | generated docker tags |
+        # |---------|-----------------------|
+        # | v1      | 1, 1.0, 1.0.0, latest |
+        # | v1.2    | 1, 1.2, 1.2.0, latest |
+        # | v1.2.3  | 1, 1.2, 1.2.3, latest |
         
         docker build . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest
 
-        docker push $IMAGE_NAME:$MAJOR_TAG
-        docker push $IMAGE_NAME:$MINOR_TAG
-        docker push $IMAGE_NAME:$PATCH_TAG
-        docker push $IMAGE_NAME:latest
+        # push all generated tags
+        docker push -a $IMAGE_NAME
  

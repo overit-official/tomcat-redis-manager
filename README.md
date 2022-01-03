@@ -115,14 +115,11 @@ This project takes advantage of a *github workflow* for the releases, so:
 
 When you push a new tag in the form of `v<MAJOR>` or `v<MAJOR><MINOR>` or `v<MAJOR>.<MINOR>.<PATCH>` a series of new tags for your Docker image are generated according to the following schema:
 
-| git tag         | generated docker tags |
-|-----------------|-----------------------|
-| v1              | 1, 1.0, 1.0.0, latest |
-| v1-SNAPSHOT     | 1, 1.0, 1.0.0, latest |
-| v1.2            | 1, 1.2, 1.2.0, latest |
-| v1.2-SNAPSHOT   | 1, 1.2, 1.2.0, latest |
-| v1.2.3          | 1, 1.2, 1.2.3, latest |
-| v1.2.3-SNAPSHOT | 1, 1.2, 1.2.3, latest |
+| git tag | generated docker tags |
+|---------|-----------------------|
+| v1      | 1, 1.0, 1.0.0, latest |
+| v1.2    | 1, 1.2, 1.2.0, latest |
+| v1.2.3  | 1, 1.2, 1.2.3, latest |
 
 In order to help releasing new tags according to this schema, you can add these ***git aliases***:
 
@@ -151,9 +148,9 @@ Some usage examples might be:
 $ git release --usage
 Creates a new tag from the current commit.
 Usage: 
-  git release [--patch] [--snapshot] # creates a new patch release 
-  git release  --minor  [--snapshot] # creates a new minor release  
-  git release  --major  [--snapshot] # creates a new major release 
+  git release [--patch] # creates a new patch release 
+  git release  --minor  # creates a new minor release  
+  git release  --major  # creates a new major release 
   
 $ git release
 Latest tag found: v1.3.5
@@ -163,25 +160,13 @@ $ git release --patch
 Latest tag found: v1.3.6
 New release tag:  v1.3.7
 
-$ git release --snapshot
-Latest tag found: v1.3.7
-New release tag:  v1.3.8-SNAPSHOT
-
 $ git release --minor 
-Latest tag found: v1.3.8-SNAPSHOT
+Latest tag found: v1.3.7
 New release tag:  v1.4.0
 
-$ git release --minor --snapshot
-Latest tag found: v1.4.0
-New release tag:  v1.5-SNAPSHOT.0
-
 $ git release --major
-Latest tag found: v1.5-SNAPSHOT.0
+Latest tag found: v1.5.0
 New release tag:  v2.0.0
-
-$ git release --major --snapshot
-Latest tag found: v2.0.0
-New release tag:  v3-SNAPSHOT.0.0
 ```
 When you create a new tag using the `git release` alias, you have to push it to the remote in order to trigger the github workflow and to release new Docker images:
 ```bash
@@ -214,9 +199,9 @@ git config --global alias.release '!f() {
        echo "" 
        echo "Creates a ${BOLD}${YELLOW}new tag${RESET} from the current commit."
        echo "Usage: "
-       echo "  git release ${GREEN}[--patch] [--snapshot] ${CYAN}# creates a new patch release ${RESET}"
-       echo "  git release  --minor  ${GREEN}[--snapshot] ${CYAN}# creates a new minor release  ${RESET}"
-       echo "  git release  --major  ${GREEN}[--snapshot] ${CYAN}# creates a new major release  ${RESET}"
+       echo "  git release ${GREEN}[--patch] ${CYAN}# creates a new patch release ${RESET}"
+       echo "  git release  --minor  ${CYAN}# creates a new minor release  ${RESET}"
+       echo "  git release  --major  ${CYAN}# creates a new major release  ${RESET}"
        exit 0
     elif [[ "$1" == "--major" ]]; then                           
        SPLITTED[0]=$((SPLITTED[0]+1))   
@@ -230,10 +215,7 @@ git config --global alias.release '!f() {
     else                                                       
        SPLITTED[2]=$((SPLITTED[2]+1))                          
     fi                                                         
-                                                               
-    if [ "$1" == "--snapshot" ] || [ "$2" == "--snapshot" ]; then                         
-       SPLITTED[$INDEX]=${SPLITTED[$INDEX]}-SNAPSHOT           
-    fi                                                         
+                                                       
     echo "Latest tag found: ${BOLD}${YELLOW} `git lasttag`${RESET}"                                                           
     git tag v${SPLITTED[0]}.${SPLITTED[1]}.${SPLITTED[2]}      
     echo "New release tag: ${BOLD}${GREEN} `git lasttag`${RESET}"

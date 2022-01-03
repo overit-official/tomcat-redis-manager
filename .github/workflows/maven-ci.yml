@@ -2,8 +2,8 @@ name: Maven CI
 on: pull_request
 
 jobs:
-  mvn-build-tests:
-    name: "Run maven build and tests"
+  mvn-tests:
+    name: "Run maven compile and tests"
     runs-on: ubuntu-latest
     steps:
 
@@ -22,5 +22,5 @@ jobs:
       with:
         redis-version: 6
 
-    - name: Maven build
-      run: mvn install
+    - name: Maven test
+      run: mvn -B test
