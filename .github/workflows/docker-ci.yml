@@ -1,0 +1,100 @@
+name: Docker CI
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+\.[0-9]+\.[0-9]+'
+
+jobs:
+  mvn-test:
+    name: Maven Compile, Unit and Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+    
+    - name: Checkout to source code
+      uses: actions/checkout@v2
+      
+    - name: Set up JDK 11 for the tests
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        cache: maven
+        
+    - name: Start Redis for the integration tests
+      uses: supercharge/redis-github-action@1.1.0
+      with:
+        redis-version: 6
+        
+    - name: Maven test
+      run: mvn -B test
+
+  docker-build-push:
+    name: Build and Push Docker tags
+    runs-on: ubuntu-latest
+    needs: mvn-test
+    outputs:
+        release_version: ${{ steps.docker_build_push.outputs.release_version }}
+    steps:
+
+    - id: checkout_code
+      name: Checkout code
+      uses: actions/checkout@v2
+
+    - id: login_docker_hub
+      name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN }}
+    
+    - id: docker_build_push
+      name: Build and push the Docker image
+      run: |
+        # example of tag: v1.4.5
+        TAG=$(echo $GITHUB_REF | cut -d / -f 3)
+        VERSION=$(echo $TAG | cut -d 'v' -f 2)
+        
+        # export the environment variable as an output for the dependant jobs
+        echo "::set-output name=release_version::$VERSION"
+
+        SPLITTED=(${VERSION//./ })
+        
+        MAJOR_TAG=${SPLITTED[0]}
+        MINOR_TAG=$MAJOR_TAG.${SPLITTED[1]}
+        PATCH_TAG=$MINOR_TAG.${SPLITTED[2]}
+
+        IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/tomcat-redis-manager
+
+        # example of docker tag generation:
+        # | git tag | generated docker tags |
+        # |---------|-----------------------|
+        # | v1.2.3  | 1, 1.2, 1.2.3, latest |
+        
+        docker build . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest
+
+        # push all generated tags
+        docker push -a $IMAGE_NAME
+        
+
+  github-release:
+    name: Create Git Release
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    steps:
+    
+      - id: checkout_code
+        name: Checkout code
+        uses: actions/checkout@v2
+        
+      - id: github_release
+        name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ needs.docker-build-push.outputs.release_version }}
+          draft: false
+          prerelease: false  
+ 
