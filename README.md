@@ -4,13 +4,13 @@
 
 ## Overview
 
-This is a Tomcat session manager that saves sessions in Redis for easy distribution of requests across a cluster of
+This is a Tomcat session manager that saves sessions in Redis for an easy distribution of requests across a cluster of
 Tomcat servers. Obviously, data stored in the session must be Serializable.
 
 You can use this library as a dependency inside your project, or you can embed the shaded jar inside the `/lib` directory of the Tomcat.
 
 
-> In this version only Tomcat 8.5 is supported, newer version of tomcat has not been tested yet.
+> In this version only Tomcat 8.5 is supported, newer versions of tomcat have not been tested yet.
 
 ## How to build
 
@@ -104,3 +104,120 @@ The `Store` tag can be configured as follows:
   Redis instance is shared between multiple applications. If not specified, the default prefix value is Tomcat.</td>
     </tr>
 </table>
+
+## Release a new version
+
+This project takes advantage of a *github workflow* for the releases, so:
+- each time you perform a **Pull Request** through github the code is compiled and tested using maven, java11 and a containerized version of redis 6;
+- each time you push a new release tag to github, the code is compiled and tested as above and then a new Docker image is generated and multiple tags are pushed to DockerHub.
+
+### Release tags
+
+When you push a new tag in the form of `v<MAJOR>` or `v<MAJOR><MINOR>` or `v<MAJOR>.<MINOR>.<PATCH>` a series of new tags for your Docker image are generated according to the following schema:
+
+| git tag | generated docker tags |
+|---------|-----------------------|
+| v1      | 1, 1.0, 1.0.0, latest |
+| v1.2    | 1, 1.2, 1.2.0, latest |
+| v1.2.3  | 1, 1.2, 1.2.3, latest |
+
+In order to help releasing new tags according to this schema, you can add these ***git aliases***:
+
+#### git lasttag 
+
+Lets you find the last tag in the above form that has been released. It fetches the remote tags first.
+
+An example of usage might be this:
+```bash
+$ git lasttag
+v1.2.3
+```
+To add this alias you have to copy-paste this instruction in your terminal:
+```bash
+git config --global alias.lasttag '!f() { git fetch -tp &>/dev/null; git tag -l v* --sort=v:refname | tail -1; }; f'
+```
+
+### git release
+
+This alias requires `git lasttag` alias to be added among yout git aliases.
+It allows you to create a new release tag (it doesn't push it to the associated remote) increasing the 
+patch, minor or major version number according to the flag you provide in input.
+
+Some usage examples might be:
+```bash
+$ git release --usage
+Creates a new tag from the current commit.
+Usage: 
+  git release [--patch] # creates a new patch release 
+  git release  --minor  # creates a new minor release  
+  git release  --major  # creates a new major release 
+  
+$ git release
+Latest tag found: v1.3.5
+New release tag:  v1.3.6  
+
+$ git release --patch
+Latest tag found: v1.3.6
+New release tag:  v1.3.7
+
+$ git release --minor 
+Latest tag found: v1.3.7
+New release tag:  v1.4.0
+
+$ git release --major
+Latest tag found: v1.5.0
+New release tag:  v2.0.0
+```
+When you create a new tag using the `git release` alias, you have to push it to the remote in order to trigger the github workflow and to release new Docker images:
+```bash
+$ git release
+Latest tag found: v1.3.5
+New release tag:  v1.3.6 
+
+$ git push origin v1.3.6
+```
+
+To add the `git release alias` to your aliases you can copy-past in your terminal the following:
+```bash
+git config --global alias.release '!f() {                      
+    RESET=`tput sgr0`
+    GREEN=`tput setaf 2`
+    CYAN=`tput setaf 6`
+    YELLOW=`tput setaf 3`
+    BOLD=`tput bold` 
+
+    LASTTAG=$(git lasttag | cut -d 'v' -f 2)                   
+    SPLITTED=(${LASTTAG//./ })                                 
+    for i in {0..2}                                            
+    do                                                         
+       SPLITTED[$i]=`echo ${SPLITTED[$i]} | cut -d '-' -f 1`   
+       [ "${SPLITTED[$i]}" != "" ] || SPLITTED[$i]=0           
+    done                                                       
+                                                               
+    INDEX=2  
+    if [ "$1" == "--help" ] || [ "$1" == "-h" ] || [ "$1" == "--usage" ]; then 
+       echo "" 
+       echo "Creates a ${BOLD}${YELLOW}new tag${RESET} from the current commit."
+       echo "Usage: "
+       echo "  git release ${GREEN}[--patch] ${CYAN}# creates a new patch release ${RESET}"
+       echo "  git release  --minor  ${CYAN}# creates a new minor release  ${RESET}"
+       echo "  git release  --major  ${CYAN}# creates a new major release  ${RESET}"
+       exit 0
+    elif [[ "$1" == "--major" ]]; then                           
+       SPLITTED[0]=$((SPLITTED[0]+1))   
+       SPLITTED[1]=0
+       SPLITTED[2]=0                       
+       INDEX=0                                                 
+    elif [[ "$1" == "--minor" ]]; then                         
+       SPLITTED[1]=$((SPLITTED[1]+1))   
+       SPLITTED[2]=0                       
+       INDEX=1                                                 
+    else                                                       
+       SPLITTED[2]=$((SPLITTED[2]+1))                          
+    fi                                                         
+                                                       
+    echo "Latest tag found: ${BOLD}${YELLOW} `git lasttag`${RESET}"                                                           
+    git tag v${SPLITTED[0]}.${SPLITTED[1]}.${SPLITTED[2]}      
+    echo "New release tag: ${BOLD}${GREEN} `git lasttag`${RESET}"
+}; f' 
+```
