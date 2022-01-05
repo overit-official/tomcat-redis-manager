@@ -44,7 +44,7 @@ jobs:
     
     - name: Build and push the Docker image
       run: |
-        # examples of tag: v1, v1.4, v1.4.5
+        # examples of tag: v1.4.5
         TAG=$(echo $GITHUB_REF | cut -d / -f 3)
         INPUT_VERSION=$(echo $TAG | cut -d 'v' -f 2)
 
@@ -63,8 +63,6 @@ jobs:
         # examples of docker tag generation:
         # | git tag | generated docker tags |
         # |---------|-----------------------|
-        # | v1      | 1, 1.0, 1.0.0, latest |
-        # | v1.2    | 1, 1.2, 1.2.0, latest |
         # | v1.2.3  | 1, 1.2, 1.2.3, latest |
         
         docker build . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest
