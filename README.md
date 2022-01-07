@@ -1,11 +1,13 @@
 
 [![Docker CI](https://github.com/overit-official/tomcat-redis-manager/actions/workflows/docker-ci.yml/badge.svg)](https://github.com/overit-official/tomcat-redis-manager/actions/workflows/docker-ci.yml)
+[![GitHub release](https://img.shields.io/github/release/overit-official/tomcat-redis-manager.svg)](https://github.com/overit-official/tomcat-redis-manager/releases/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/overit-official/tomcat-redis-manager/graphs/commit-activity)
 [![made-by-OverIT](https://img.shields.io/badge/Made%20by-OverIT-1f425f.svg)](https://overit.us)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![GitHub release](https://img.shields.io/github/release/overit-official/tomcat-redis-manager.svg)](https://github.com/overit-official/tomcat-redis-manager/releases/)
 
 # Redis Session Manager for Apache Tomcat
+
+![alt text](assets/tomcat_redis_manager_logo.png)
 
 ## Overview
 
