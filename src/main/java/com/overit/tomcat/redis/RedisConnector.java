@@ -3,8 +3,11 @@ package com.overit.tomcat.redis;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import redis.clients.jedis.*;
+import redis.clients.jedis.params.ScanParams;
+import redis.clients.jedis.resps.ScanResult;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -104,7 +107,7 @@ public class RedisConnector {
         jpc.setMaxIdle(3);
         jpc.setMinIdle(1);
         jpc.setLifo(true);
-        jpc.setMinEvictableIdleTimeMillis(10000);
+        jpc.setMinEvictableIdleTime(Duration.ofMillis(10000));
         jpc.setTestOnCreate(true);
         jpc.setTestOnBorrow(true);
 
@@ -157,11 +160,12 @@ public class RedisConnector {
             Set<String> set = new HashSet<>();
             String cursor = ScanParams.SCAN_POINTER_START;
             do {
-                ScanParams2 sp = new ScanParams2();
+                ScanParams sp = new ScanParams();
                 sp.match(pattern);
-                if (type != null) sp.type(type);
 
-                ScanResult<String> sr = j.scan(cursor, sp);
+                ScanResult<String> sr;
+                if (type != null) sr = j.scan(cursor, sp, type);
+                else sr = j.scan(cursor, sp);
                 cursor = sr.getCursor();
                 set.addAll(sr.getResult());
             } while (!cursor.equals(ScanParams.SCAN_POINTER_START));
@@ -191,11 +195,12 @@ public class RedisConnector {
 
             String cursor = ScanParams.SCAN_POINTER_START;
             do {
-                ScanParams2 sp = new ScanParams2();
+                ScanParams sp = new ScanParams();
                 sp.match(pattern);
-                if (type != null) sp.type(type);
 
-                ScanResult<String> sr = j.scan(cursor, sp);
+                ScanResult<String> sr;
+                if (type != null) sr = j.scan(cursor, sp, type);
+                else sr = j.scan(cursor, sp);
 
                 cursor = sr.getCursor();
                 List<String> res = sr.getResult();

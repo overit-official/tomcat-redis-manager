@@ -4,7 +4,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import redis.clients.jedis.BinaryJedis;
+import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
 
 import java.util.Set;
@@ -33,12 +33,12 @@ public class RedisConnectorTest {
     public void dispose() {
         RedisConnector instance = RedisConnector.instance();
         RedisConnector.dispose();
-        Assert.assertThrows(Exception.class, () -> instance.execute(BinaryJedis::ping));
+        Assert.assertThrows(Exception.class, () -> instance.execute(Jedis::ping));
     }
 
     @Test
     public void execute() {
-        String pong = RedisConnector.instance().execute(BinaryJedis::ping);
+        String pong = RedisConnector.instance().execute(Jedis::ping);
         Assert.assertEquals("PONG", pong);
     }
 

@@ -13,7 +13,6 @@ import redis.clients.jedis.Transaction;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Concrete implementation of the <b>Store</b> interface that utilizes
@@ -120,7 +119,7 @@ public final class RedisStore extends StoreBase {
 
         try {
             return RedisConnector.instance().execute(j -> {
-                Set<String> s = j.zrangeByScore(getIndexKey(), "0", Long.toString(System.currentTimeMillis()));
+                List<String> s = j.zrangeByScore(getIndexKey(), "0", Long.toString(System.currentTimeMillis()));
                 return s.toArray(new String[]{});
             });
 
@@ -141,7 +140,7 @@ public final class RedisStore extends StoreBase {
     public String[] keys() {
         try {
             return RedisConnector.instance().execute(j -> {
-                Set<String> s = j.zrange(getIndexKey(), 0, -1);
+                List<String> s = j.zrange(getIndexKey(), 0, -1);
                 return s.toArray(new String[0]);
             });
         } catch (Exception e) {
