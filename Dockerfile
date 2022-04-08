@@ -17,6 +17,9 @@ WORKDIR /tmp
 COPY src ./src
 COPY pom.xml .
 RUN mvn clean package -DskipTests
+RUN mvn dependency:copy -Dartifact=io.prometheus.jmx:jmx_prometheus_javaagent:0.16.1 -DoutputDirectory=/opt/jmx_exporter
 
 FROM tomcat:8.5-jre11-temurin-focal
 COPY --from=build /tmp/target/tomcat-redis-manager-*-shaded.jar $CATALINA_HOME/lib
+COPY --from=build /opt/jmx_exporter /opt/jmx_exporter
+COPY config.yaml /opt/jmx_exporter
