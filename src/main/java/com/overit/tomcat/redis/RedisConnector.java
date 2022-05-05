@@ -139,6 +139,15 @@ public class RedisConnector {
     }
 
     /**
+     * TODO
+     * @param channel
+     * @param message
+     */
+    public void publish(String channel, String message) {
+        execute(client -> client.publish(channel, message));
+    }
+
+    /**
      * Extract the keys that matches a given pattern and belongs to a specific type
      *
      * @param pattern the pattern string

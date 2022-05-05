@@ -25,6 +25,8 @@ import java.util.List;
 public final class RedisStore extends StoreBase {
 
     private static final Log log = LogFactory.getLog(RedisStore.class);
+    private static final String SESSION_DRAINING_CHANNEL = "SESSION_DRAINING_CHANNEL";
+    private static final int MAX_AWAITING_LOADING_TIME = 5 * 60 * 1000; // 5min
 
 
     private String prefix = "tomcat";
@@ -167,23 +169,16 @@ public final class RedisStore extends StoreBase {
 
 
         try {
-            byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
-            byte[] raw = RedisConnector.instance().execute(j -> {
-                Transaction t = j.multi();
-                t.get(key);
-                t.del(key);
-                t.zrem(getIndexKey(), id);
-                List<Object> r = t.exec();
+            byte[] raw = loadSession(id);
 
-                return (byte[]) r.get(0);
-            });
+            if (raw != null) return restoreSession(raw);
 
-            try (ObjectInputStream input = getObjectInputStream(new ByteArrayInputStream(raw))) {
-                StandardSession session = (StandardSession) manager.createEmptySession();
-                session.readObjectData(input);
-                session.setManager(manager);
-                return session;
+            long now = System.currentTimeMillis();
+            if (askForSessionDraining(id, now, true)) {
+                return awaitAndLoad(id, now);
             }
+
+            return null;
         } catch (Exception e) {
             if (log.isDebugEnabled()) {
                 log.debug("Error loading session", e);
@@ -283,6 +278,60 @@ public final class RedisStore extends StoreBase {
         } catch (IOException e) {
             return false;
         }
+    }
+
+    private boolean askForSessionDraining(String id, long start, boolean firstRetry) throws InterruptedException {
+        if (System.currentTimeMillis() - start > 2000) return false;
+        if (firstRetry) {
+            RedisConnector.instance().publish(SESSION_DRAINING_CHANNEL, id);
+        }
+        if (someOneAnsweredMe(id)) return true;
+        Thread.sleep(100);
+        return askForSessionDraining(id, start, false);
+    }
+
+    private boolean someOneAnsweredMe(String id) {
+        return RedisConnector.instance().execute(client -> {
+            String key = getSessionKey(id)+":requested";
+            Transaction t = client.multi();
+            t.get(key);
+            t.del(key);
+            List<Object> results = t.exec();
+            return results.get(0) != null;
+        });
+    }
+
+    private StandardSession restoreSession(byte[] raw) throws IOException, ClassNotFoundException {
+        try (ObjectInputStream input = getObjectInputStream(new ByteArrayInputStream(raw))) {
+            StandardSession session = (StandardSession) manager.createEmptySession();
+            session.readObjectData(input);
+            session.setManager(manager);
+            return session;
+        }
+    }
+
+    private byte[] loadSession(String id) {
+        byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
+        return RedisConnector.instance().execute(j -> {
+            Transaction t = j.multi();
+            t.get(key);
+            t.del(key);
+            t.zrem(getIndexKey(), id);
+            List<Object> r = t.exec();
+
+            return (byte[]) r.get(0);
+        });
+    }
+
+    private Session awaitAndLoad(String id, long start) throws Exception {
+        if (System.currentTimeMillis() - start > MAX_AWAITING_LOADING_TIME) return null;
+
+        byte[] raw = loadSession(id);
+
+        if (raw != null) return restoreSession(raw);
+
+        Thread.sleep(100);
+        return awaitAndLoad(id, start);
     }
 
 

@@ -4,6 +4,8 @@ import org.apache.catalina.Manager;
 import org.apache.catalina.Session;
 import org.apache.catalina.session.StandardManager;
 import org.apache.catalina.session.StandardSession;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -12,6 +14,9 @@ import com.overit.tomcat.TesterContext;
 import com.overit.tomcat.TesterServletContext;
 
 import java.io.IOException;
+
+import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.*;
 
 public class RedisStoreTest {
     private RedisStore store;
@@ -84,5 +89,18 @@ public class RedisStoreTest {
         Session s2 = store.load("s2");
         Assert.assertNotNull(s2);
         Assert.assertEquals("s2", s2.getIdInternal());
+    }
+
+    @Test
+    public void load_havingNoStoredSessionAndNoOneCanDrainIt_shouldReturnNull() {
+        long start = System.currentTimeMillis();
+
+        Session session = store.load("unknown");
+
+        long now = System.currentTimeMillis();
+
+        assertThat(session).isNull();
+        assertThat(now-start).isCloseTo(2000, Offset.offset(500L));
+
     }
 }
