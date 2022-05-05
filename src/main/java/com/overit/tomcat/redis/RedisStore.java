@@ -13,6 +13,7 @@ import redis.clients.jedis.Transaction;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Concrete implementation of the <b>Store</b> interface that utilizes
@@ -25,7 +26,6 @@ import java.util.List;
 public class RedisStore extends StoreBase {
 
     private static final Log log = LogFactory.getLog(RedisStore.class);
-    private static final String SESSION_DRAINING_CHANNEL = "SESSION_DRAINING_CHANNEL";
     private static final int MAX_AWAITING_LOADING_TIME = 5 * 60 * 1000; // 5min
     private static final String COUNTING_SESSIONS_ERROR = "Error counting sessions";
     private static final String LISTING_SESSIONS_ERROR = "Error listing sessions";
@@ -36,6 +36,9 @@ public class RedisStore extends StoreBase {
 
     private String prefix = "tomcat";
 
+    public RedisStore() {
+        RedisSubscriberServiceManager.getInstance().getService().subscribe(this::onSessionDrainRequest);
+    }
 
     /**
      * Set the prefix of the keys whose contains the serialized sessions. Those to avoid possible conflicts if the
@@ -168,9 +171,13 @@ public class RedisStore extends StoreBase {
 
             long now = System.currentTimeMillis();
             return askForSessionDraining(id, now, true)
-                     ? awaitAndLoad(id, now)
-                     : null;
+                ? awaitAndLoad(id, now)
+                : null;
 
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logDebug(LOADING_SESSION_ERROR, e);
+            return null;
         } catch (Exception e) {
             logDebug(LOADING_SESSION_ERROR, e);
             return null;
@@ -244,6 +251,7 @@ public class RedisStore extends StoreBase {
     @Override
     protected synchronized void stopInternal() throws LifecycleException {
         RedisConnector.dispose();
+        RedisSubscriberServiceManager.getInstance().stop();
         super.stopInternal();
     }
 
@@ -267,22 +275,28 @@ public class RedisStore extends StoreBase {
 
     boolean askForSessionDraining(String id, long start, boolean firstRetry) throws InterruptedException {
         if (System.currentTimeMillis() - start > 2000) return false;
-        if (firstRetry) {
-            RedisConnector.instance().publish(SESSION_DRAINING_CHANNEL, id);
-        }
+        if (firstRetry) sendSessionDrainingRequest(id);
         if (someOneAnsweredMe(id)) return true;
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         return askForSessionDraining(id, start, false);
+    }
+
+    void sendSessionDrainingRequest(String id) {
+        RedisConnector.instance().publish(RedisSubscriberServiceManager.getInstance().getSubscribeChannel(), id);
     }
 
     boolean someOneAnsweredMe(String id) {
         return RedisConnector.instance().execute(client -> {
-            String key = getSessionKey(id)+":requested";
+            String key = getSessionRequestKey(id);
             Transaction t = client.multi();
             t.get(key);
             t.del(key);
             return t.exec().get(0) != null;
         });
+    }
+
+    String getSessionRequestKey(String id) {
+        return getSessionKey(id) + ":request";
     }
 
     private StandardSession restoreSession(byte[] raw) throws IOException, ClassNotFoundException {
@@ -294,7 +308,7 @@ public class RedisStore extends StoreBase {
         }
     }
 
-    private byte[] loadSession(String id) {
+    byte[] loadSession(String id) {
         byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
         return RedisConnector.instance().execute(j -> {
             Transaction t = j.multi();
@@ -311,12 +325,38 @@ public class RedisStore extends StoreBase {
         byte[] raw = loadSession(id);
         if (raw != null) return restoreSession(raw);
 
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         return awaitAndLoad(id, start);
+    }
+
+    void onSessionDrainRequest(String sessionId) {
+        try {
+            Session session = getManager().findSession(sessionId);
+            if (session == null) return;
+
+            String key = getSessionRequestKey(sessionId);
+            RedisConnector.instance().execute(client -> client.set(key, "true"));
+
+
+            while (isProcessing(session)) {
+                // wait until the end of te processing
+            }
+
+
+            save(session);
+
+        } catch (IOException e) {
+            logDebug("error loading/saving session", e);
+        }
+    }
+
+    private boolean isProcessing(Session session) {
+        return Boolean.TRUE.equals(session.getSession().getAttribute("processing"));
     }
 
     private void logDebug(String message, Throwable e) {
         if (log.isDebugEnabled()) log.debug(message, e);
     }
+
 
 }
