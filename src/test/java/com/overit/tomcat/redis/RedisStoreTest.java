@@ -1,5 +1,6 @@
 package com.overit.tomcat.redis;
 
+import org.apache.catalina.Executor;
 import org.apache.catalina.Manager;
 import org.apache.catalina.Session;
 import org.apache.catalina.session.StandardManager;
@@ -14,6 +15,8 @@ import com.overit.tomcat.TesterContext;
 import com.overit.tomcat.TesterServletContext;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.Assert.*;
 import static org.assertj.core.api.Assertions.*;
@@ -55,40 +58,40 @@ public class RedisStoreTest {
 
     @Test
     public void getSize() {
-        Assert.assertEquals(2, store.getSize());
+        assertEquals(2, store.getSize());
     }
 
     @Test
     public void clear() {
         store.clear();
-        Assert.assertEquals(0, store.getSize());
+        assertEquals(0, store.getSize());
     }
 
     @Test
     public void keys() {
-        Assert.assertArrayEquals(new String[]{"s1", "s2"}, store.keys());
+        assertArrayEquals(new String[]{"s1", "s2"}, store.keys());
         store.clear();
-        Assert.assertArrayEquals(new String[]{}, store.keys());
+        assertArrayEquals(new String[]{}, store.keys());
     }
 
     @Test
     public void remove() {
         store.remove("s1");
-        Assert.assertEquals(1, store.getSize());
+        assertEquals(1, store.getSize());
     }
 
     @Test
     public void add() throws IOException {
         store.save(createSession("s3"));
-        Assert.assertEquals(3, store.getSize());
-        Assert.assertArrayEquals(new String[]{"s1", "s2", "s3"}, store.keys());
+        assertEquals(3, store.getSize());
+        assertArrayEquals(new String[]{"s1", "s2", "s3"}, store.keys());
     }
 
     @Test
     public void load() {
         Session s2 = store.load("s2");
-        Assert.assertNotNull(s2);
-        Assert.assertEquals("s2", s2.getIdInternal());
+        assertNotNull(s2);
+        assertEquals("s2", s2.getIdInternal());
     }
 
     @Test
@@ -101,6 +104,24 @@ public class RedisStoreTest {
 
         assertThat(session).isNull();
         assertThat(now-start).isCloseTo(2000, Offset.offset(500L));
+    }
 
+    @Test
+    public void load_havingNoStoredSessionAndItIsDrainedLater_shouldReturnNotNull() throws IOException {
+        String key = "tomcat:session:s4:requested";
+
+        RedisConnector.instance().execute(j -> j.set(key, "true"));
+        Executors.newFixedThreadPool(1).submit(() -> {
+            try {
+                Thread.sleep(1000);
+                store.save(createSession("s4"));
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+
+        Session session = store.load("s4");
+
+        assertThat(session).isNotNull();
     }
 }

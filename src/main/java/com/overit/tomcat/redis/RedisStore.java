@@ -27,7 +27,12 @@ public final class RedisStore extends StoreBase {
     private static final Log log = LogFactory.getLog(RedisStore.class);
     private static final String SESSION_DRAINING_CHANNEL = "SESSION_DRAINING_CHANNEL";
     private static final int MAX_AWAITING_LOADING_TIME = 5 * 60 * 1000; // 5min
-
+    private static final String COUNTING_SESSIONS_ERROR = "Error counting sessions";
+    private static final String LISTING_SESSIONS_ERROR = "Error listing sessions";
+    private static final String LOADING_SESSION_ERROR = "Error loading session";
+    private static final String REMOVING_SESSION_ERROR = "Error removing session";
+    private static final String DELETING_SESSIONS_ERROR = "Error deleting sessions";
+    private static final String UNLOADING_SESSION_ERROR = "Error unloading session";
 
     private String prefix = "tomcat";
 
@@ -88,13 +93,10 @@ public final class RedisStore extends StoreBase {
             long s = RedisConnector.instance().execute(j -> j.zcount(getIndexKey(), "-inf", "+inf"));
             return (int) s;
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error counting sessions", e);
-            }
+            logDebug(COUNTING_SESSIONS_ERROR, e);
         }
         return 0;
     }
-
 
     /**
      * Remove all the Sessions in this Store.
@@ -109,9 +111,7 @@ public final class RedisStore extends StoreBase {
             });
 
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error deleting sessions", e);
-            }
+            logDebug(DELETING_SESSIONS_ERROR, e);
         }
     }
 
@@ -126,9 +126,7 @@ public final class RedisStore extends StoreBase {
             });
 
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error listing sessions");
-            }
+            logDebug(LISTING_SESSIONS_ERROR, e);
             return new String[0];
         }
     }
@@ -146,9 +144,7 @@ public final class RedisStore extends StoreBase {
                 return s.toArray(new String[0]);
             });
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error listing sessions", e);
-            }
+            logDebug(LISTING_SESSIONS_ERROR, e);
             return new String[0];
         }
     }
@@ -164,25 +160,19 @@ public final class RedisStore extends StoreBase {
     @Override
     public Session load(String id) {
         Context context = getManager().getContext();
-
         ClassLoader oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
-
 
         try {
             byte[] raw = loadSession(id);
-
             if (raw != null) return restoreSession(raw);
 
             long now = System.currentTimeMillis();
-            if (askForSessionDraining(id, now, true)) {
-                return awaitAndLoad(id, now);
-            }
+            return askForSessionDraining(id, now, true)
+                     ? awaitAndLoad(id, now)
+                     : null;
 
-            return null;
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error loading session", e);
-            }
+            logDebug(LOADING_SESSION_ERROR, e);
             return null;
         } finally {
             context.unbind(Globals.IS_SECURITY_ENABLED, oldThreadContextCL);
@@ -208,9 +198,7 @@ public final class RedisStore extends StoreBase {
                 return null;
             });
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error removing session", e);
-            }
+            logDebug(REMOVING_SESSION_ERROR, e);
         }
     }
 
@@ -248,13 +236,10 @@ public final class RedisStore extends StoreBase {
                 return null;
             });
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error unloading session", e);
-            }
+            logDebug(UNLOADING_SESSION_ERROR, e);
             throw new IOException(e);
         }
     }
-
 
     @Override
     protected synchronized void stopInternal() throws LifecycleException {
@@ -296,8 +281,7 @@ public final class RedisStore extends StoreBase {
             Transaction t = client.multi();
             t.get(key);
             t.del(key);
-            List<Object> results = t.exec();
-            return results.get(0) != null;
+            return t.exec().get(0) != null;
         });
     }
 
@@ -317,9 +301,7 @@ public final class RedisStore extends StoreBase {
             t.get(key);
             t.del(key);
             t.zrem(getIndexKey(), id);
-            List<Object> r = t.exec();
-
-            return (byte[]) r.get(0);
+            return (byte[]) t.exec().get(0);
         });
     }
 
@@ -327,12 +309,14 @@ public final class RedisStore extends StoreBase {
         if (System.currentTimeMillis() - start > MAX_AWAITING_LOADING_TIME) return null;
 
         byte[] raw = loadSession(id);
-
         if (raw != null) return restoreSession(raw);
 
         Thread.sleep(100);
         return awaitAndLoad(id, start);
     }
 
+    private void logDebug(String message, Throwable e) {
+        if (log.isDebugEnabled()) log.debug(message, e);
+    }
 
 }
