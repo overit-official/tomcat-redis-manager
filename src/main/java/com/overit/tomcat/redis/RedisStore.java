@@ -13,6 +13,7 @@ import redis.clients.jedis.Transaction;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Concrete implementation of the <b>Store</b> interface that utilizes
@@ -22,13 +23,22 @@ import java.util.List;
  * @author Alessandro Modolo
  * @author Mauro Manfrin
  */
-public final class RedisStore extends StoreBase {
+public class RedisStore extends StoreBase {
 
     private static final Log log = LogFactory.getLog(RedisStore.class);
-
+    private static final int MAX_AWAITING_LOADING_TIME = 5 * 60 * 1000; // 5min
+    private static final String COUNTING_SESSIONS_ERROR = "Error counting sessions";
+    private static final String LISTING_SESSIONS_ERROR = "Error listing sessions";
+    private static final String LOADING_SESSION_ERROR = "Error loading session";
+    private static final String REMOVING_SESSION_ERROR = "Error removing session";
+    private static final String DELETING_SESSIONS_ERROR = "Error deleting sessions";
+    private static final String UNLOADING_SESSION_ERROR = "Error unloading session";
 
     private String prefix = "tomcat";
 
+    public RedisStore() {
+        RedisSubscriberServiceManager.getInstance().getService().subscribe(this::onSessionDrainRequest);
+    }
 
     /**
      * Set the prefix of the keys whose contains the serialized sessions. Those to avoid possible conflicts if the
@@ -86,13 +96,10 @@ public final class RedisStore extends StoreBase {
             long s = RedisConnector.instance().execute(j -> j.zcount(getIndexKey(), "-inf", "+inf"));
             return (int) s;
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error counting sessions", e);
-            }
+            logDebug(COUNTING_SESSIONS_ERROR, e);
         }
         return 0;
     }
-
 
     /**
      * Remove all the Sessions in this Store.
@@ -107,9 +114,7 @@ public final class RedisStore extends StoreBase {
             });
 
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error deleting sessions", e);
-            }
+            logDebug(DELETING_SESSIONS_ERROR, e);
         }
     }
 
@@ -124,9 +129,7 @@ public final class RedisStore extends StoreBase {
             });
 
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error listing sessions");
-            }
+            logDebug(LISTING_SESSIONS_ERROR, e);
             return new String[0];
         }
     }
@@ -144,9 +147,7 @@ public final class RedisStore extends StoreBase {
                 return s.toArray(new String[0]);
             });
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error listing sessions", e);
-            }
+            logDebug(LISTING_SESSIONS_ERROR, e);
             return new String[0];
         }
     }
@@ -162,32 +163,23 @@ public final class RedisStore extends StoreBase {
     @Override
     public Session load(String id) {
         Context context = getManager().getContext();
-
         ClassLoader oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
 
-
         try {
-            byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
-            byte[] raw = RedisConnector.instance().execute(j -> {
-                Transaction t = j.multi();
-                t.get(key);
-                t.del(key);
-                t.zrem(getIndexKey(), id);
-                List<Object> r = t.exec();
+            byte[] raw = loadSession(id);
+            if (raw != null) return restoreSession(raw);
 
-                return (byte[]) r.get(0);
-            });
+            long now = System.currentTimeMillis();
+            return askForSessionDraining(id, now, true)
+                ? awaitAndLoad(id, now)
+                : null;
 
-            try (ObjectInputStream input = getObjectInputStream(new ByteArrayInputStream(raw))) {
-                StandardSession session = (StandardSession) manager.createEmptySession();
-                session.readObjectData(input);
-                session.setManager(manager);
-                return session;
-            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logDebug(LOADING_SESSION_ERROR, e);
+            return null;
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error loading session", e);
-            }
+            logDebug(LOADING_SESSION_ERROR, e);
             return null;
         } finally {
             context.unbind(Globals.IS_SECURITY_ENABLED, oldThreadContextCL);
@@ -213,9 +205,7 @@ public final class RedisStore extends StoreBase {
                 return null;
             });
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error removing session", e);
-            }
+            logDebug(REMOVING_SESSION_ERROR, e);
         }
     }
 
@@ -253,17 +243,15 @@ public final class RedisStore extends StoreBase {
                 return null;
             });
         } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error unloading session", e);
-            }
+            logDebug(UNLOADING_SESSION_ERROR, e);
             throw new IOException(e);
         }
     }
 
-
     @Override
     protected synchronized void stopInternal() throws LifecycleException {
         RedisConnector.dispose();
+        RedisSubscriberServiceManager.getInstance().stop();
         super.stopInternal();
     }
 
@@ -283,6 +271,91 @@ public final class RedisStore extends StoreBase {
         } catch (IOException e) {
             return false;
         }
+    }
+
+    boolean askForSessionDraining(String id, long start, boolean firstRetry) throws InterruptedException {
+        if (System.currentTimeMillis() - start > 2000) return false;
+        if (firstRetry) sendSessionDrainingRequest(id);
+        if (someOneAnsweredMe(id)) return true;
+        TimeUnit.MILLISECONDS.sleep(100);
+        return askForSessionDraining(id, start, false);
+    }
+
+    void sendSessionDrainingRequest(String id) {
+        RedisConnector.instance().publish(RedisSubscriberServiceManager.getInstance().getSubscribeChannel(), id);
+    }
+
+    boolean someOneAnsweredMe(String id) {
+        return RedisConnector.instance().execute(client -> {
+            String key = getSessionRequestKey(id);
+            Transaction t = client.multi();
+            t.get(key);
+            t.del(key);
+            return t.exec().get(0) != null;
+        });
+    }
+
+    String getSessionRequestKey(String id) {
+        return getSessionKey(id) + ":request";
+    }
+
+    private StandardSession restoreSession(byte[] raw) throws IOException, ClassNotFoundException {
+        try (ObjectInputStream input = getObjectInputStream(new ByteArrayInputStream(raw))) {
+            StandardSession session = (StandardSession) manager.createEmptySession();
+            session.readObjectData(input);
+            session.setManager(manager);
+            return session;
+        }
+    }
+
+    byte[] loadSession(String id) {
+        byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
+        return RedisConnector.instance().execute(j -> {
+            Transaction t = j.multi();
+            t.get(key);
+            t.del(key);
+            t.zrem(getIndexKey(), id);
+            return (byte[]) t.exec().get(0);
+        });
+    }
+
+    Session awaitAndLoad(String id, long start) throws Exception {
+        if (System.currentTimeMillis() - start > MAX_AWAITING_LOADING_TIME) return null;
+
+        byte[] raw = loadSession(id);
+        if (raw != null) return restoreSession(raw);
+
+        TimeUnit.MILLISECONDS.sleep(100);
+        return awaitAndLoad(id, start);
+    }
+
+    void onSessionDrainRequest(String sessionId) {
+        try {
+            Session session = getManager().findSession(sessionId);
+            if (session == null) return;
+
+            String key = getSessionRequestKey(sessionId);
+            RedisConnector.instance().execute(client -> client.set(key, "true"));
+
+
+            while (isProcessing(session)) {
+                // wait until the end of te processing
+            }
+
+
+            save(session);
+
+        } catch (IOException e) {
+            logDebug("error loading/saving session", e);
+        }
+    }
+
+    private boolean isProcessing(Session session) {
+        return Boolean.TRUE.equals(session.getSession().getAttribute("processing"));
+    }
+
+    private void logDebug(String message, Throwable e) {
+        if (log.isDebugEnabled()) log.debug(message, e);
     }
 
 

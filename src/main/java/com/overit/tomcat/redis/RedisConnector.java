@@ -18,7 +18,7 @@ import java.util.function.Function;
  *
  * <p>Use the static {@link #instance()} method to get a singleton instance of this driver and connect with the local
  * redis service ({@code redis://localhost:6379}). Otherwise, it is possible to use the {@link #setUrl(String)} method
- * to specify another connection url, or even you can configure the comunication timeouts using the {@link #setConnectionTimeout(int)} and
+ * to specify another connection url, or even you can configure the communication timeouts using the {@link #setConnectionTimeout(int)} and
  * {@link #setSoTimeout(int)} methods.</p>
  *
  * <p><em>You have to call the setter methods before the {@link #instance()}</em>.</p>
@@ -28,7 +28,7 @@ import java.util.function.Function;
  * @author Mauro Manfrin
  * @author Alessandro Modolo
  */
-public class RedisConnector {
+class RedisConnector {
 
     private static final Log log = LogFactory.getLog(RedisConnector.class);
     private static String url = "redis://localhost:6379";
@@ -139,6 +139,32 @@ public class RedisConnector {
     }
 
     /**
+     * Broadcast a message via the specified channel. The message will be received by all agents that has been
+     * {@link #subscribe(JedisPubSub, String...) subscribed} to this channel
+     *
+     * @param channel the channel against with send the message
+     * @param message the message payload
+     */
+    public void publish(String channel, String message) {
+        execute(client -> client.publish(channel, message));
+    }
+
+    /**
+     * Subscribe to all the messages received from the specified channels.
+     * <br/>
+     * <em>WARNING: This method will block the current thread until the un-subscription</em>
+     *
+     * @param subscriber instance of the subscriber interface
+     * @param channels   channels from which receive the notifications
+     */
+    public void subscribe(JedisPubSub subscriber, String... channels) {
+        execute(client -> {
+            client.subscribe(subscriber, channels);
+            return null;
+        });
+    }
+
+    /**
      * Extract the keys that matches a given pattern and belongs to a specific type
      *
      * @param pattern the pattern string
@@ -176,7 +202,7 @@ public class RedisConnector {
     }
 
     /**
-     * Delete the keys that matches a given pattern and belongs to a specific type
+     * Delete the keys that match a given pattern and belongs to a specific type
      *
      * @param pattern the pattern string
      * @param type    string representation of the type of the value stored at key. The different types that can be used
