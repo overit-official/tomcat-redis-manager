@@ -1,27 +1,29 @@
 package com.overit.tomcat.redis;
 
-import org.apache.catalina.Executor;
+import com.overit.tomcat.TesterContext;
+import com.overit.tomcat.TesterServletContext;
 import org.apache.catalina.Manager;
 import org.apache.catalina.Session;
 import org.apache.catalina.session.StandardManager;
 import org.apache.catalina.session.StandardSession;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Offset;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import com.overit.tomcat.TesterContext;
-import com.overit.tomcat.TesterServletContext;
+import org.junit.runner.RunWith;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.*;
-import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
+@RunWith(MockitoJUnitRunner.class)
 public class RedisStoreTest {
+    @Spy
     private RedisStore store;
     private Manager manager;
 
@@ -31,7 +33,6 @@ public class RedisStoreTest {
         testerContext.setServletContext(new TesterServletContext());
         manager = new StandardManager();
         manager.setContext(testerContext);
-        store = new RedisStore();
         store.setUrl(String.format("redis://%s:%d", "localhost", 6379));
         store.setManager(manager);
 
@@ -96,19 +97,32 @@ public class RedisStoreTest {
 
     @Test
     public void load_havingNoStoredSessionAndNoOneCanDrainIt_shouldReturnNull() {
+        // given
         long start = System.currentTimeMillis();
 
+        // when
         Session session = store.load("unknown");
 
+        // then
         long now = System.currentTimeMillis();
-
         assertThat(session).isNull();
-        assertThat(now-start).isCloseTo(2000, Offset.offset(500L));
+        assertThat(now - start).isBetween(2000L, 2500L);
     }
 
     @Test
-    public void load_havingNoStoredSessionAndItIsDrainedLater_shouldReturnNotNull() throws IOException {
+    public void load_havingNoStoredSessionAndItIsDrainedLater_shouldReturnNotNull() throws Exception {
+        // give
         String key = "tomcat:session:s4:requested";
+        AtomicLong start = new AtomicLong();
+        AtomicLong stop = new AtomicLong();
+        when(store.askForSessionDraining(anyString(), anyLong(), anyBoolean())).thenAnswer(invocation -> {
+            start.set(System.currentTimeMillis());
+            return invocation.callRealMethod();
+        });
+        when(store.awaitAndLoad(anyString(), anyLong())).thenAnswer(invocation -> {
+            stop.set(System.currentTimeMillis());
+            return invocation.callRealMethod();
+        });
 
         RedisConnector.instance().execute(j -> j.set(key, "true"));
         Executors.newFixedThreadPool(1).submit(() -> {
@@ -123,5 +137,6 @@ public class RedisStoreTest {
         Session session = store.load("s4");
 
         assertThat(session).isNotNull();
+        assertThat(stop.get() - start.get()).isLessThanOrEqualTo(2000);
     }
 }

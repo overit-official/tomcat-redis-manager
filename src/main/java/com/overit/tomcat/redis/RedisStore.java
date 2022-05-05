@@ -22,7 +22,7 @@ import java.util.List;
  * @author Alessandro Modolo
  * @author Mauro Manfrin
  */
-public final class RedisStore extends StoreBase {
+public class RedisStore extends StoreBase {
 
     private static final Log log = LogFactory.getLog(RedisStore.class);
     private static final String SESSION_DRAINING_CHANNEL = "SESSION_DRAINING_CHANNEL";
@@ -265,7 +265,7 @@ public final class RedisStore extends StoreBase {
         }
     }
 
-    private boolean askForSessionDraining(String id, long start, boolean firstRetry) throws InterruptedException {
+    boolean askForSessionDraining(String id, long start, boolean firstRetry) throws InterruptedException {
         if (System.currentTimeMillis() - start > 2000) return false;
         if (firstRetry) {
             RedisConnector.instance().publish(SESSION_DRAINING_CHANNEL, id);
@@ -275,7 +275,7 @@ public final class RedisStore extends StoreBase {
         return askForSessionDraining(id, start, false);
     }
 
-    private boolean someOneAnsweredMe(String id) {
+    boolean someOneAnsweredMe(String id) {
         return RedisConnector.instance().execute(client -> {
             String key = getSessionKey(id)+":requested";
             Transaction t = client.multi();
@@ -305,7 +305,7 @@ public final class RedisStore extends StoreBase {
         });
     }
 
-    private Session awaitAndLoad(String id, long start) throws Exception {
+    Session awaitAndLoad(String id, long start) throws Exception {
         if (System.currentTimeMillis() - start > MAX_AWAITING_LOADING_TIME) return null;
 
         byte[] raw = loadSession(id);
