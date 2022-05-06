@@ -1,20 +1,21 @@
 package com.overit.tomcat.redis;
 
+import org.apache.catalina.Store;
 import redis.clients.jedis.JedisPubSub;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 class RedisSubscriberService implements Runnable {
 
     private static final String SESSION_DRAINING_CHANNEL = "SESSION_DRAINING_CHANNEL";
 
-    private final List<Consumer<String>> subscribers = new CopyOnWriteArrayList<>();
+    private final Map<Store, Consumer<String>> subscribers = new ConcurrentHashMap<>();
     private final JedisPubSub subscriber = new JedisPubSub() {
         @Override
         public void onMessage(String channel, String sessionId) {
-            subscribers.forEach(handler -> handler.accept(sessionId));
+            subscribers.forEach((store, handler) -> handler.accept(sessionId));
         }
     };
 
@@ -23,12 +24,12 @@ class RedisSubscriberService implements Runnable {
         RedisConnector.instance().subscribe(subscriber, getSubscribeChannel());
     }
 
-    public void subscribe(Consumer<String> handler) {
-        subscribers.add(handler);
+    public void subscribe(Store store, Consumer<String> handler) {
+        subscribers.putIfAbsent(store, handler);
     }
 
-    public void unsubscribe(Consumer<String> handler) {
-        subscribers.remove(handler);
+    public void unsubscribe(Store store) {
+        subscribers.remove(store);
     }
 
     public void unsubscribe() {

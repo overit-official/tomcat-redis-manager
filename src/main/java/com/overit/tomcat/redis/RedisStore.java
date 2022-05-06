@@ -37,10 +37,6 @@ public class RedisStore extends StoreBase {
 
     private String prefix = "tomcat";
 
-    public RedisStore() {
-        RedisSubscriberServiceManager.getInstance().getService().subscribe(this::onSessionDrainRequest);
-    }
-
     /**
      * Set the prefix of the keys whose contains the serialized sessions. Those to avoid possible conflicts if the
      * same redis instance is shared between multiple applications. If not specified, the default prefix value is
@@ -163,6 +159,8 @@ public class RedisStore extends StoreBase {
      */
     @Override
     public Session load(String id) {
+        registerDrainingRequestListener();
+
         Context context = getManager().getContext();
         ClassLoader oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
 
@@ -363,6 +361,10 @@ public class RedisStore extends StoreBase {
 
     private boolean isProcessing(Session session) {
         return Boolean.TRUE.equals(session.getSession().getAttribute("processing"));
+    }
+
+    void registerDrainingRequestListener() {
+        RedisSubscriberServiceManager.getInstance().subscribe(this, this::onSessionDrainRequest);
     }
 
     private void logDebug(String message, Throwable e) {

@@ -138,6 +138,7 @@ public class RedisStoreTest {
     @Test
     public void onSessionDrainRequest_whenReceiveARequestNotification_shouldCallTheMethod() throws InterruptedException {
         // when
+        store.registerDrainingRequestListener();
         store.sendSessionDrainingRequest("");
         TimeUnit.MILLISECONDS.sleep(100);
 
