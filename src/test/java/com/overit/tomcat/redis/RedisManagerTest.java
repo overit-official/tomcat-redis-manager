@@ -27,6 +27,7 @@ public class RedisManagerTest {
     public void tearDown() throws Exception {
         manager.stop();
         RedisConnector.instance().del("*", "string");
+        RedisConnector.instance().del("*", "*");
     }
 
     @AfterClass

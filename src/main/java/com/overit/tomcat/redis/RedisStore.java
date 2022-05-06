@@ -12,7 +12,9 @@ import redis.clients.jedis.Transaction;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -34,8 +36,10 @@ public class RedisStore extends StoreBase {
     private static final String REMOVING_SESSION_ERROR = "Error removing session";
     private static final String DELETING_SESSIONS_ERROR = "Error deleting sessions";
     private static final String UNLOADING_SESSION_ERROR = "Error unloading session";
+    public static final String SESSION_DRAINED = "drained";
 
     private String prefix = "tomcat";
+    private final Set<String> drainedSessions = new HashSet<>();
 
     /**
      * Set the prefix of the keys whose contains the serialized sessions. Those to avoid possible conflicts if the
@@ -195,6 +199,8 @@ public class RedisStore extends StoreBase {
      */
     @Override
     public void remove(String id) {
+        if (isSessionDrained(id)) return;
+
         try {
             RedisConnector.instance().execute(j -> {
                 Transaction t = j.multi();
@@ -331,11 +337,7 @@ public class RedisStore extends StoreBase {
     void onSessionDrainRequest(String sessionId) {
         try {
             // do not call the findSession(String) otherwise it calls the load method that fire another session drain broadcast message (indirect loop)
-            Session[] sessions = getManager().findSessions();
-            Session session = Stream.of(sessions)
-                .filter(s -> s.getIdInternal().equals(sessionId))
-                .findAny()
-                .orElse(null);
+            Session session = findSessionById(sessionId);
             if (session == null) return;
 
             String key = getSessionRequestKey(sessionId);
@@ -346,16 +348,31 @@ public class RedisStore extends StoreBase {
                 return t.exec();
             });
 
-
             while (isProcessing(session)) {
                 // wait until the end of te processing
             }
 
-
-            save(session);
-
+            passivateAndDrain(session);
         } catch (IOException e) {
             logDebug("error loading/saving session", e);
+        }
+    }
+
+    private Session findSessionById(String sessionId) {
+        Session[] sessions = getManager().findSessions();
+        return Stream.of(sessions)
+            .filter(s -> s.getIdInternal().equals(sessionId))
+            .findAny()
+            .orElse(null);
+    }
+
+    private void passivateAndDrain(Session session) throws IOException {
+        if (session instanceof StandardSession) {
+            StandardSession standardSession = ((StandardSession) session);
+            standardSession.passivate();
+            save(standardSession);
+            markSessionAsDrained(standardSession);
+            standardSession.invalidate();
         }
     }
 
@@ -365,6 +382,14 @@ public class RedisStore extends StoreBase {
 
     void registerDrainingRequestListener() {
         RedisSubscriberServiceManager.getInstance().subscribe(this, this::onSessionDrainRequest);
+    }
+
+    private void markSessionAsDrained(Session session) {
+        drainedSessions.add(session.getIdInternal());
+    }
+
+    private boolean isSessionDrained(String id) {
+        return drainedSessions.contains(id);
     }
 
     private void logDebug(String message, Throwable e) {

@@ -18,6 +18,8 @@ import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
+import javax.servlet.http.HttpSessionActivationListener;
+import javax.servlet.http.HttpSessionEvent;
 import java.io.IOException;
 import java.io.NotSerializableException;
 import java.util.concurrent.Executors;
@@ -51,6 +53,7 @@ public class RedisStoreTest {
 
     @After
     public void cleanup() throws Exception {
+        RedisConnector.instance().del("*", "*");
         store.clear();
         store.stop();
     }
@@ -170,13 +173,14 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException {
+    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException, IOException {
         // when
-        store.sendSessionDrainingRequest("s1");
+        store.save(createSession("sd"));
+        store.sendSessionDrainingRequest("sd");
         TimeUnit.MILLISECONDS.sleep(100);
 
         // then
-        byte[] session = store.loadSession("s1");
+        byte[] session = store.loadSession("sd");
         assertThat(session).isNotEmpty();
     }
 
@@ -191,7 +195,7 @@ public class RedisStoreTest {
 
         // then
         verify(store, atLeastOnce()).save(sessionArgumentCaptor.capture());
-        assertThat(sessionArgumentCaptor.getValue().getSession().getAttribute("processing")).isEqualTo(false);
+        assertThat(sessionArgumentCaptor.getValue().isValid()).isFalse();
     }
 
     @Test
@@ -213,6 +217,21 @@ public class RedisStoreTest {
 
         // then
         verify(store).onSessionDrainRequest(any());
+    }
+
+    @Test
+    public void onSessionDrainingRequest_receivedKnownSessionId_shouldPassivateAndSaveIt() throws IOException {
+        // given
+        Session s = createSession("ss");
+        HttpSessionActivationListener listener = mock(HttpSessionActivationListener.class);
+        s.getSession().setAttribute("bean", listener);
+
+        // when
+        store.onSessionDrainRequest("ss");
+
+        // then
+        verify(listener).sessionWillPassivate(any());
+        verify(store).save(s);
     }
 
     private Session createSession(String id) {
