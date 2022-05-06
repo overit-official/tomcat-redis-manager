@@ -1,7 +1,10 @@
 package com.overit.tomcat.redis;
 
+import org.apache.catalina.Store;
+
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 class RedisSubscriberServiceManager {
     private static RedisSubscriberServiceManager instance;
@@ -29,8 +32,8 @@ class RedisSubscriberServiceManager {
         task.cancel(true);
     }
 
-    public RedisSubscriberService getService() {
-        return service;
+    public void subscribe(Store store, Consumer<String> handler) {
+        service.subscribe(store, handler);
     }
 
     public String getSubscribeChannel() {
