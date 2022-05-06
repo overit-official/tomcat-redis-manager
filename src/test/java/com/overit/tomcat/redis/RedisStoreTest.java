@@ -5,6 +5,7 @@ import com.overit.tomcat.TesterServletContext;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.Manager;
 import org.apache.catalina.Session;
+import org.apache.catalina.session.PersistentManager;
 import org.apache.catalina.session.StandardManager;
 import org.apache.catalina.session.StandardSession;
 import org.junit.After;
@@ -33,16 +34,16 @@ public class RedisStoreTest {
     @Captor
     private ArgumentCaptor<Session> sessionArgumentCaptor;
 
-    private Manager manager;
+    private PersistentManager manager;
 
     @Before
     public void setUp() throws Exception {
         TesterContext testerContext = new TesterContext();
         testerContext.setServletContext(new TesterServletContext());
-        manager = new StandardManager();
+        manager = new PersistentManager();
+        manager.setStore(store);
         manager.setContext(testerContext);
         store.setUrl(String.format("redis://%s:%d", "localhost", 6379));
-        store.setManager(manager);
 
         store.save(createSession("s1"));
         store.save(createSession("s2"));
@@ -135,9 +136,10 @@ public class RedisStoreTest {
 
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldCallTheMethod() {
+    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldCallTheMethod() throws InterruptedException {
         // when
         store.sendSessionDrainingRequest("");
+        TimeUnit.MILLISECONDS.sleep(100);
 
         // then
         verify(store).onSessionDrainRequest("");
@@ -189,6 +191,27 @@ public class RedisStoreTest {
         // then
         verify(store, atLeastOnce()).save(sessionArgumentCaptor.capture());
         assertThat(sessionArgumentCaptor.getValue().getSession().getAttribute("processing")).isEqualTo(false);
+    }
+
+    @Test
+    public void onSessionDrainingRequest_whenReceiveARequestForUnknownSession_shouldNotCallTheLoadMethod() {
+        // given
+
+        // when
+        store.onSessionDrainRequest("unknown");
+
+        // then
+        verify(store, never()).load(any());
+    }
+    @Test
+    public void onSessionDrainingRequest_whenReceiveARequestForUnknownSession_shouldBeCalledOnce() throws InterruptedException {
+
+        // when
+        store.onSessionDrainRequest("unknown");
+        TimeUnit.SECONDS.sleep(1);
+
+        // then
+        verify(store).onSessionDrainRequest(any());
     }
 
     private Session createSession(String id) {

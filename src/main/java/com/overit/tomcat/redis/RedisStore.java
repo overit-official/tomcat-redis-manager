@@ -14,6 +14,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
  * Concrete implementation of the <b>Store</b> interface that utilizes
@@ -331,7 +332,12 @@ public class RedisStore extends StoreBase {
 
     void onSessionDrainRequest(String sessionId) {
         try {
-            Session session = getManager().findSession(sessionId);
+            // do not call the findSession(String) otherwise it calls the load method that fire another session drain broadcast message (indirect loop)
+            Session[] sessions = getManager().findSessions();
+            Session session = Stream.of(sessions)
+                .filter(s -> s.getIdInternal().equals(sessionId))
+                .findAny()
+                .orElse(null);
             if (session == null) return;
 
             String key = getSessionRequestKey(sessionId);
