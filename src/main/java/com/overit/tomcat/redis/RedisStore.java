@@ -335,7 +335,12 @@ public class RedisStore extends StoreBase {
             if (session == null) return;
 
             String key = getSessionRequestKey(sessionId);
-            RedisConnector.instance().execute(client -> client.set(key, "true"));
+            RedisConnector.instance().execute(client -> {
+                Transaction t = client.multi();
+                t.set(key, "true");
+                t.expire(key, 10);
+                return t.exec();
+            });
 
 
             while (isProcessing(session)) {
