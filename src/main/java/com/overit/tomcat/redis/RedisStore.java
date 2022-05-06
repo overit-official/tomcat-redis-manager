@@ -36,7 +36,7 @@ public class RedisStore extends StoreBase {
     private static final String REMOVING_SESSION_ERROR = "Error removing session";
     private static final String DELETING_SESSIONS_ERROR = "Error deleting sessions";
     private static final String UNLOADING_SESSION_ERROR = "Error unloading session";
-    public static final String SESSION_DRAINED = "drained";
+    static final String STORE_NAME = "redisStore";
 
     private String prefix = "tomcat";
     private final Set<String> drainedSessions = new HashSet<>();
@@ -50,6 +50,10 @@ public class RedisStore extends StoreBase {
      */
     public void setPrefix(String prefix) {
         this.prefix = prefix;
+    }
+
+    String getPrefix() {
+        return prefix;
     }
 
     /**
@@ -85,7 +89,7 @@ public class RedisStore extends StoreBase {
      */
     @Override
     public String getStoreName() {
-        return "redisStore";
+        return STORE_NAME;
     }
 
     /**
@@ -94,7 +98,7 @@ public class RedisStore extends StoreBase {
     @Override
     public int getSize() {
         try {
-            long s = RedisConnector.instance().execute(j -> j.zcount(getIndexKey(), "-inf", "+inf"));
+            long s = getConnector().execute(j -> j.zcount(getIndexKey(), "-inf", "+inf"));
             return (int) s;
         } catch (Exception e) {
             logDebug(COUNTING_SESSIONS_ERROR, e);
@@ -108,8 +112,8 @@ public class RedisStore extends StoreBase {
     @Override
     public void clear() {
         try {
-            RedisConnector.instance().del(getSessionKey("*"), "string");
-            RedisConnector.instance().execute(j -> {
+            getConnector().del(getSessionKey("*"), "string");
+            getConnector().execute(j -> {
                 j.del(getIndexKey());
                 return null;
             });
@@ -124,7 +128,7 @@ public class RedisStore extends StoreBase {
     public String[] expiredKeys() {
 
         try {
-            return RedisConnector.instance().execute(j -> {
+            return getConnector().execute(j -> {
                 List<String> s = j.zrangeByScore(getIndexKey(), "0", Long.toString(System.currentTimeMillis()));
                 return s.toArray(new String[]{});
             });
@@ -143,7 +147,7 @@ public class RedisStore extends StoreBase {
     @Override
     public String[] keys() {
         try {
-            return RedisConnector.instance().execute(j -> {
+            return getConnector().execute(j -> {
                 List<String> s = j.zrange(getIndexKey(), 0, -1);
                 return s.toArray(new String[0]);
             });
@@ -202,7 +206,7 @@ public class RedisStore extends StoreBase {
         if (isSessionDrained(id)) return;
 
         try {
-            RedisConnector.instance().execute(j -> {
+            getConnector().execute(j -> {
                 Transaction t = j.multi();
                 t.del(getSessionKey(id));
                 t.zrem(getIndexKey(), id);
@@ -234,7 +238,7 @@ public class RedisStore extends StoreBase {
             ((StandardSession) session).writeObjectData(outputStream);
             outputStream.flush();
 
-            RedisConnector.instance().execute(j -> {
+            getConnector().execute(j -> {
                 long expire = (session.getLastAccessedTime() + (session.getMaxInactiveInterval() * 1000L));
                 long ttl = expire - System.currentTimeMillis();
                 byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
@@ -255,18 +259,18 @@ public class RedisStore extends StoreBase {
 
     @Override
     protected synchronized void stopInternal() throws LifecycleException {
-        RedisConnector.dispose();
-        RedisSubscriberServiceManager.getInstance().stop();
+        getConnector().stop();
+        getSubscriberServiceManager().stop();
         super.stopInternal();
     }
 
 
     private String getIndexKey() {
-        return prefix + ":sessions";
+        return getPrefix() + ":sessions";
     }
 
     private String getSessionKey(String sessionId) {
-        return prefix + ":session:" + sessionId;
+        return getPrefix() + ":session:" + sessionId;
     }
 
     private boolean isSerializable(Session session) {
@@ -287,11 +291,11 @@ public class RedisStore extends StoreBase {
     }
 
     void sendSessionDrainingRequest(String id) {
-        RedisConnector.instance().publish(RedisSubscriberServiceManager.getInstance().getSubscribeChannel(), id);
+        getConnector().publish(RedisSubscriberServiceManager.getInstance().getSubscribeChannel(), id);
     }
 
     boolean someOneAnsweredMe(String id) {
-        return RedisConnector.instance().execute(client -> {
+        return getConnector().execute(client -> {
             String key = getSessionRequestKey(id);
             Transaction t = client.multi();
             t.get(key);
@@ -315,7 +319,7 @@ public class RedisStore extends StoreBase {
 
     byte[] loadSession(String id) {
         byte[] key = getSessionKey(id).getBytes(StandardCharsets.UTF_8);
-        return RedisConnector.instance().execute(j -> {
+        return getConnector().execute(j -> {
             Transaction t = j.multi();
             t.get(key);
             t.del(key);
@@ -341,7 +345,7 @@ public class RedisStore extends StoreBase {
             if (session == null) return;
 
             String key = getSessionRequestKey(sessionId);
-            RedisConnector.instance().execute(client -> {
+            getConnector().execute(client -> {
                 Transaction t = client.multi();
                 t.set(key, "true");
                 t.expire(key, 10);
@@ -381,7 +385,7 @@ public class RedisStore extends StoreBase {
     }
 
     void registerDrainingRequestListener() {
-        RedisSubscriberServiceManager.getInstance().subscribe(this, this::onSessionDrainRequest);
+        getSubscriberServiceManager().subscribe(this, this::onSessionDrainRequest);
     }
 
     private void markSessionAsDrained(Session session) {
@@ -396,5 +400,10 @@ public class RedisStore extends StoreBase {
         if (log.isDebugEnabled()) log.debug(message, e);
     }
 
-
+    RedisConnector getConnector() {
+        return RedisConnector.instance();
+    }
+    RedisSubscriberServiceManager getSubscriberServiceManager() {
+        return RedisSubscriberServiceManager.getInstance();
+    }
 }

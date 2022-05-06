@@ -28,12 +28,8 @@ class RedisSubscriberService implements Runnable {
         subscribers.putIfAbsent(store, handler);
     }
 
-    public void unsubscribe(Store store) {
-        subscribers.remove(store);
-    }
-
     public void unsubscribe() {
-        subscriber.unsubscribe();
+        if (subscriber.isSubscribed()) subscriber.unsubscribe();
         subscribers.clear();
     }
 

@@ -63,6 +63,14 @@ class RedisConnector {
     }
 
     /**
+     * Get the maximum time that the client can wait to connect with the Redis DB before to give up
+     * @return timeout expressed in seconds
+     */
+    public static int getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    /**
      * Maximum timeout that the client can wait to get the response from the Redis DB before to give up
      *
      * @param soTimeout timeout expressed in seconds
@@ -71,6 +79,13 @@ class RedisConnector {
         RedisConnector.soTimeout = soTimeout;
     }
 
+    /**
+     * Get the maximum time that the client can wait to get the response from the Redis DB before to give up
+     * @return timeout expressed in seconds
+     */
+    public static int getSoTimeout() {
+        return soTimeout;
+    }
     /**
      * Retrieve an instance that will be used to communicate with the Redis server
      *
@@ -86,7 +101,7 @@ class RedisConnector {
     /**
      * Close the connection with the Redis server and reset the instance
      */
-    public static void dispose() {
+    static void dispose() {
         if (instance == null) return;
         instance.stop();
         instance = null;
@@ -120,7 +135,7 @@ class RedisConnector {
     /**
      * Close the connection with the Redis server
      */
-    private void stop() {
+    protected void stop() {
         pool.close();
     }
 
