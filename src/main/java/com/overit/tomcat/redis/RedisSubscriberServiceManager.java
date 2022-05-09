@@ -18,7 +18,7 @@ class RedisSubscriberServiceManager {
         return instance;
     }
 
-    public RedisSubscriberServiceManager(RedisSubscriberService service) {
+    RedisSubscriberServiceManager(RedisSubscriberService service) {
         this.service = service;
         start();
     }

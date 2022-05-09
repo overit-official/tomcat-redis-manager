@@ -14,6 +14,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.MockedStatic;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
@@ -22,11 +23,13 @@ import javax.servlet.http.HttpSessionActivationListener;
 import javax.servlet.http.HttpSessionEvent;
 import java.io.IOException;
 import java.io.NotSerializableException;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -64,9 +67,33 @@ public class RedisStoreTest {
     }
 
     @Test
+    public void getSize_whenRedisIsBroken_shouldReturnZero() {
+        // given
+        try (MockedStatic<RedisConnector> ignored = mockStatic(RedisConnector.class)) {
+            when(RedisConnector.instance()).thenReturn(null);
+
+            // when
+            int size = store.getSize();
+
+            // then
+            assertThat(size).isZero();
+        }
+    }
+
+    @Test
     public void clear() {
         store.clear();
         assertThat(store.getSize()).isZero();
+    }
+    @Test
+    public void clear_whenRedisIsBroken_shouldNotThrows() {
+        // given
+        try (MockedStatic<RedisConnector> ignored = mockStatic(RedisConnector.class)) {
+            when(RedisConnector.instance()).thenReturn(null);
+
+            // then
+            assertThatNoException().isThrownBy(store::clear);
+        }
     }
 
     @Test
@@ -74,6 +101,35 @@ public class RedisStoreTest {
         assertThat(store.keys()).containsExactlyInAnyOrder("s1", "s2");
         store.clear();
         assertThat(store.keys()).isEmpty();
+    }
+
+    @Test
+    public void expiredKeys_givenAnExpiredSession_shouldReturnItsId() throws InterruptedException, IOException {
+        // given
+        String expected = UUID.randomUUID().toString();
+        Session session = createSession(expected);
+        session.getSession().setMaxInactiveInterval(1);
+        store.save(session);
+        TimeUnit.SECONDS.sleep(2);
+
+        // when
+        String[] expiredKeys = store.expiredKeys();
+
+        // then
+        assertThat(expiredKeys).contains(expected);
+    }
+
+    @Test
+    public void expiredKeys_givenNoExpiredSession_shouldReturnEmptyArray() {
+        // given
+        String expected = UUID.randomUUID().toString();
+        Session session = createSession("expired");
+
+        // when
+        String[] expiredKeys = store.expiredKeys();
+
+        // then
+        assertThat(expiredKeys).isEmpty();
     }
 
     @Test
@@ -175,9 +231,10 @@ public class RedisStoreTest {
     @Test
     public void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException, IOException {
         // when
-        store.save(createSession("sd"));
+        store.registerDrainingRequestListener();
+        createSession("sd");
         store.sendSessionDrainingRequest("sd");
-        TimeUnit.MILLISECONDS.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(500);
 
         // then
         byte[] session = store.loadSession("sd");
@@ -232,6 +289,92 @@ public class RedisStoreTest {
         // then
         verify(listener).sessionWillPassivate(any());
         verify(store).save(s);
+    }
+    @Test
+    public void onSessionDrainingRequest_receivedKnownSessionId_shouldInvalidateTheSession() throws IOException {
+        // given
+        Session s = createSession("s");
+
+        // when
+        store.onSessionDrainRequest("s");
+
+        // then
+        assertThat(s.isValid()).isFalse();
+    }
+
+    @Test
+    public void setPrefix_givenAString_shouldSetIt() {
+        // given
+        String expected = UUID.randomUUID().toString();
+
+        // when
+        store.setPrefix(expected);
+
+        // then
+        assertThat(store.getPrefix()).isEqualTo(expected);
+    }
+
+    @Test
+    public void getStoreName_shouldReturnTheExceptedConstant() {
+        assertThat(store.getStoreName()).isEqualTo(store.STORE_NAME);
+    }
+
+    @Test
+    public void setConnectionTimeout_givenAValidNumber_shouldSetTheRedisConnectorTimeout() {
+        // given
+        int expected = 123456789;
+
+        // when
+        store.setConnectionTimeout(expected);
+
+        // then
+        assertThat(RedisConnector.getConnectionTimeout()).isEqualTo(expected);
+    }
+
+    @Test
+    public void setSoTimeout_givenAValidNumber_shouldSetTheRedisConnectorTimeout() {
+        // given
+        int expected = 123456789;
+
+        // when
+        store.setSoTimeout(expected);
+
+        // then
+        assertThat(RedisConnector.getSoTimeout()).isEqualTo(expected);
+    }
+
+    @Test
+    public void stopInternal_shouldStopRedisConnectorAndSubscriber() throws LifecycleException {
+        // given
+        store.start();
+        RedisConnector connector = mock(RedisConnector.class);
+        when(store.getConnector()).thenReturn(connector);
+        RedisSubscriberServiceManager subscriberServiceManager = mock(RedisSubscriberServiceManager.class);
+        when(store.getSubscriberServiceManager()).thenReturn(subscriberServiceManager);
+
+        // when
+        store.stop();
+
+        // then
+        verify(connector).stop();
+        verify(subscriberServiceManager).stop();
+    }
+
+    @Test
+    public void stopInternal_shouldUnsubscribeAllSubscriber() throws LifecycleException {
+        // given
+        store.start();
+        RedisConnector connector = mock(RedisConnector.class);
+        when(store.getConnector()).thenReturn(connector);
+        RedisSubscriberService service = mock(RedisSubscriberService.class);
+        RedisSubscriberServiceManager subscriberServiceManager = new RedisSubscriberServiceManager(service);
+        when(store.getSubscriberServiceManager()).thenReturn(subscriberServiceManager);
+
+        // when
+        store.stop();
+
+        // then
+        verify(service).unsubscribe();
     }
 
     private Session createSession(String id) {

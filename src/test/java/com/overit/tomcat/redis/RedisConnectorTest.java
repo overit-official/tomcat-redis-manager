@@ -30,9 +30,9 @@ public class RedisConnectorTest {
     }
 
     @Test
-    public void dispose() {
+    public void stop() {
         RedisConnector instance = RedisConnector.instance();
-        RedisConnector.dispose();
+        instance.stop();
         Assert.assertThrows(Exception.class, () -> instance.execute(Jedis::ping));
     }
 
