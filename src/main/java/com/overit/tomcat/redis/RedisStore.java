@@ -1,9 +1,6 @@
 package com.overit.tomcat.redis;
 
-import org.apache.catalina.Context;
-import org.apache.catalina.Globals;
-import org.apache.catalina.LifecycleException;
-import org.apache.catalina.Session;
+import org.apache.catalina.*;
 import org.apache.catalina.session.StandardSession;
 import org.apache.catalina.session.StoreBase;
 import org.apache.juli.logging.Log;
@@ -26,7 +23,7 @@ import java.util.stream.Stream;
  * @author Alessandro Modolo
  * @author Mauro Manfrin
  */
-public class RedisStore extends StoreBase {
+public class RedisStore extends StoreBase implements LifecycleListener {
 
     private static final Log log = LogFactory.getLog(RedisStore.class);
     private static final int MAX_AWAITING_LOADING_TIME = 5 * 60 * 1000; // 5min
@@ -90,6 +87,29 @@ public class RedisStore extends StoreBase {
     @Override
     public String getStoreName() {
         return STORE_NAME;
+    }
+
+    @Override
+    protected synchronized void startInternal() throws LifecycleException {
+        super.startInternal();
+        getManager().getContext().addLifecycleListener(this);
+    }
+
+    @Override
+    protected synchronized void stopInternal() throws LifecycleException {
+        getConnector().stop();
+        getSubscriberServiceManager().stop();
+        getManager().getContext().removeLifecycleListener(this);
+        super.stopInternal();
+    }
+
+    @Override
+    public void lifecycleEvent(LifecycleEvent event) {
+        if (Lifecycle.AFTER_START_EVENT.equals(event.getType())) {
+            // ensure to subscribe to the redis channel after the context start in order to give the opportunity,
+            // to the application, to programmatically set the connector URL
+            subscribeToSessionDrainRequests();
+        }
     }
 
     /**
@@ -167,7 +187,6 @@ public class RedisStore extends StoreBase {
      */
     @Override
     public Session load(String id) {
-        registerDrainingRequestListener();
 
         Context context = getManager().getContext();
         ClassLoader oldThreadContextCL = context.bind(Globals.IS_SECURITY_ENABLED, null);
@@ -257,14 +276,6 @@ public class RedisStore extends StoreBase {
         }
     }
 
-    @Override
-    protected synchronized void stopInternal() throws LifecycleException {
-        getConnector().stop();
-        getSubscriberServiceManager().stop();
-        super.stopInternal();
-    }
-
-
     private String getIndexKey() {
         return getPrefix() + ":sessions";
     }
@@ -283,7 +294,7 @@ public class RedisStore extends StoreBase {
     }
 
     boolean askForSessionDraining(String id, long start, boolean firstRetry) throws InterruptedException {
-        if (System.currentTimeMillis() - start > 2000) return false;
+        if (System.currentTimeMillis() - start > 1000) return false;
         if (firstRetry) sendSessionDrainingRequest(id);
         if (someOneAnsweredMe(id)) return true;
         TimeUnit.MILLISECONDS.sleep(100);
@@ -334,7 +345,7 @@ public class RedisStore extends StoreBase {
         byte[] raw = loadSession(id);
         if (raw != null) return restoreSession(raw);
 
-        TimeUnit.MILLISECONDS.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(500);
         return awaitAndLoad(id, start);
     }
 
@@ -345,12 +356,7 @@ public class RedisStore extends StoreBase {
             if (session == null) return;
 
             String key = getSessionRequestKey(sessionId);
-            getConnector().execute(client -> {
-                Transaction t = client.multi();
-                t.set(key, "true");
-                t.expire(key, 10);
-                return t.exec();
-            });
+            getConnector().execute(client -> client.setex(key, 5, "true"));
 
             while (isProcessing(session)) {
                 // wait until the end of te processing
@@ -384,10 +390,6 @@ public class RedisStore extends StoreBase {
         return Boolean.TRUE.equals(session.getSession().getAttribute("processing"));
     }
 
-    void registerDrainingRequestListener() {
-        getSubscriberServiceManager().subscribe(this, this::onSessionDrainRequest);
-    }
-
     private void markSessionAsDrained(Session session) {
         drainedSessions.add(session.getIdInternal());
     }
@@ -403,7 +405,12 @@ public class RedisStore extends StoreBase {
     RedisConnector getConnector() {
         return RedisConnector.instance();
     }
+
     RedisSubscriberServiceManager getSubscriberServiceManager() {
         return RedisSubscriberServiceManager.getInstance();
+    }
+
+    void subscribeToSessionDrainRequests() {
+        getSubscriberServiceManager().subscribe(this, this::onSessionDrainRequest);
     }
 }

@@ -172,7 +172,7 @@ public class RedisStoreTest {
         // then
         long end = System.currentTimeMillis();
         assertThat(session).isNull();
-        assertThat(end - start).isBetween(2000L, 2500L);
+        assertThat(end - start).isBetween(1000L, 1500L);
     }
 
     @Test
@@ -197,7 +197,7 @@ public class RedisStoreTest {
     @Test
     public void onSessionDrainRequest_whenReceiveARequestNotification_shouldCallTheMethod() throws InterruptedException {
         // when
-        store.registerDrainingRequestListener();
+        store.subscribeToSessionDrainRequests();
         store.sendSessionDrainingRequest("");
         TimeUnit.MILLISECONDS.sleep(100);
 
@@ -229,9 +229,9 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException, IOException {
+    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException {
         // when
-        store.registerDrainingRequestListener();
+        store.subscribeToSessionDrainRequests();
         createSession("sd");
         store.sendSessionDrainingRequest("sd");
         TimeUnit.MILLISECONDS.sleep(500);
@@ -291,7 +291,7 @@ public class RedisStoreTest {
         verify(store).save(s);
     }
     @Test
-    public void onSessionDrainingRequest_receivedKnownSessionId_shouldInvalidateTheSession() throws IOException {
+    public void onSessionDrainingRequest_receivedKnownSessionId_shouldInvalidateTheSession() {
         // given
         Session s = createSession("s");
 
@@ -316,7 +316,7 @@ public class RedisStoreTest {
 
     @Test
     public void getStoreName_shouldReturnTheExceptedConstant() {
-        assertThat(store.getStoreName()).isEqualTo(store.STORE_NAME);
+        assertThat(store.getStoreName()).isEqualTo(RedisStore.STORE_NAME);
     }
 
     @Test
