@@ -11,22 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     
-    - name: Checkout to source code
+    - id: checkout_code
+      name: Checkout to source code
       uses: actions/checkout@v2
       
-    - name: Set up JDK 11 for the tests
+    - id: jdk_setup
+      name: Set up JDK 11 for the tests
       uses: actions/setup-java@v2
       with:
         java-version: '11'
         distribution: 'temurin'
         cache: maven
         
-    - name: Start Redis for the integration tests
+    - id: redis_setup
+      name: Start Redis for the integration tests
       uses: supercharge/redis-github-action@1.1.0
       with:
         redis-version: 6
         
-    - name: Maven test
+    - id: mvn_test
+      name: Maven test
       run: mvn -B test
 
   docker-build-push:
@@ -76,7 +80,6 @@ jobs:
         # push all generated tags
         docker push -a $IMAGE_NAME
         
-
   github-release:
     name: Create Git Release
     needs: docker-build-push
@@ -86,15 +89,29 @@ jobs:
       - id: checkout_code
         name: Checkout code
         uses: actions/checkout@v2
+
+      - id: jdk_setup
+        name: Set up JDK 11 for the tests
+        uses: actions/setup-java@v2
+        with:
+          java-version: 11
+          distribution: temurin
+          cache: maven
+                
+      - id: mvn_package
+        name: Maven package
+        run: mvn package -DskipTests  
         
       - id: github_release
         name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        uses: marvinpinto/action-automatic-releases@latest
         with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
           tag_name: ${{ github.ref }}
           release_name: ${{ needs.docker-build-push.outputs.release_version }}
           draft: false
-          prerelease: false  
+          prerelease: false
+          files: |
+            LICENSE
+            target/*-shaded.jar  
  
