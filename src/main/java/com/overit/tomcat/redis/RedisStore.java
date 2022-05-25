@@ -1,6 +1,7 @@
 package com.overit.tomcat.redis;
 
 import org.apache.catalina.*;
+import org.apache.catalina.session.PersistentManager;
 import org.apache.catalina.session.StandardSession;
 import org.apache.catalina.session.StoreBase;
 import org.apache.juli.logging.Log;
@@ -25,6 +26,18 @@ import java.util.stream.Stream;
  */
 public class RedisStore extends StoreBase implements LifecycleListener {
 
+    private enum Activation {
+        AUTO,
+        MANUAL;
+
+        static Activation parse(String activation) {
+            switch (activation.trim().toLowerCase()) {
+                case "manual": return MANUAL;
+                case "auto": return AUTO;
+                default: throw new IllegalArgumentException("unsupported activation mode");
+            }
+        }
+    }
     private static final Log log = LogFactory.getLog(RedisStore.class);
     private static final int MAX_AWAITING_LOADING_TIME = 5 * 60 * 1000; // 5min
     private static final String COUNTING_SESSIONS_ERROR = "Error counting sessions";
@@ -37,6 +50,8 @@ public class RedisStore extends StoreBase implements LifecycleListener {
 
     private String prefix = "tomcat";
     private final Set<String> drainedSessions = new HashSet<>();
+
+    private Activation activation = Activation.AUTO;
 
     /**
      * Set the prefix of the keys whose contains the serialized sessions. Those to avoid possible conflicts if the
@@ -80,6 +95,19 @@ public class RedisStore extends StoreBase implements LifecycleListener {
         RedisConnector.setSoTimeout(soTimeout);
     }
 
+    /**
+     * Set the activation mode. Possible values are:
+     * <ul>
+     *     <li>{@code auto}: this store will be automatically enabled (default)</li>
+     *     <li>{@code manual}: this store will be enabled only if {@code tomcat.redis.manager.enabled=true} is passed
+     *     as env variable or java property</li>
+     * </ul>
+     * @param activation string representing the activation mode
+     */
+    public void setActivation(String activation) {
+        this.activation = Activation.parse(activation);
+    }
+
 
     /**
      * Return the name for this Store, used for logging.
@@ -92,7 +120,11 @@ public class RedisStore extends StoreBase implements LifecycleListener {
     @Override
     protected synchronized void startInternal() throws LifecycleException {
         super.startInternal();
-        getManager().getContext().addLifecycleListener(this);
+        if (isEnabled()) {
+            getManager().getContext().addLifecycleListener(this);
+        } else {
+            ((PersistentManager)getManager()).setMaxIdleSwap(-1);
+        }
     }
 
     @Override
@@ -248,6 +280,7 @@ public class RedisStore extends StoreBase implements LifecycleListener {
     @Override
     public void save(Session session) throws IOException {
 
+        if (!isEnabled()) throw new NotSerializableException("store not enabled");
         if (!isSerializable(session)) throw new NotSerializableException(session.getClass().getName());
 
         String id = session.getIdInternal();
@@ -412,5 +445,13 @@ public class RedisStore extends StoreBase implements LifecycleListener {
 
     void subscribeToSessionDrainRequests() {
         getSubscriberServiceManager().subscribe(this, this::onSessionDrainRequest);
+    }
+
+    private boolean isEnabled() {
+        if (activation == Activation.AUTO) return true;
+
+        String enabled = System.getProperty("tomcat.redis.manager.enabled");
+        if (enabled == null) enabled = System.getenv("tomcat.redis.manager.enabled");
+        return Boolean.parseBoolean(enabled);
     }
 }

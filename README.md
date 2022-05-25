@@ -110,6 +110,16 @@ The `Store` tag can be configured as follows:
         <td>prefix of the keys whose contains the serialized sessions. Those to avoid possible conflicts if the same
   Redis instance is shared between multiple applications. If not specified, the default prefix value is Tomcat.</td>
     </tr>
+    <tr>
+        <td><code>activation</code></td>
+        <td>
+            the activation mode. Possible values are:
+            <ul>
+                <li><code>auto</code>: this store will be automatically enabled (default)</li>
+                <li><code>manual</code>: this store will be enabled only if <code>tomcat.redis.manager.enabled=true</code> is passed as env variable or java property</li>
+            </ul>
+        </td>
+    </tr>
 </table>
 
 ## Release a new version
