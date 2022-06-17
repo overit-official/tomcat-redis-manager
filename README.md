@@ -95,7 +95,18 @@ The `Store` tag can be configured as follows:
 <table>
     <tr>
         <td><code>url</code></td>
-        <td>the redis database URL (i/e something like : redis://localhost:6379). This attribute is mandatory.</td>
+        <td>
+            the redis database URL (i/e something like : redis://localhost:6379). This attribute is mandatory.
+            It is possible to specify many semicolon separated urls (to support Redis Sentinel configuration)
+        </td>
+    </tr>
+    <tr>
+        <td><code>sentinelGroup</code></td>
+        <td>
+            The name of the sentinel's master group. By providing this configuration, it enables the redis sentinel mode
+            integration. Refer to <a href="https://redis.io/docs/manual/sentinel/">High availability with Redis Sentinel</a>
+            documentation
+        </td>
     </tr>
     <tr>
         <td><code>connectionTimeout</code></td>

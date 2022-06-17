@@ -3,15 +3,19 @@ package com.overit.tomcat.redis;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import redis.clients.jedis.*;
+import redis.clients.jedis.exceptions.InvalidURIException;
 import redis.clients.jedis.params.ScanParams;
 import redis.clients.jedis.resps.ScanResult;
+import redis.clients.jedis.util.JedisURIHelper;
+import redis.clients.jedis.util.Pool;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Driver used to connect with a Redis service and run commands.
@@ -30,10 +34,14 @@ import java.util.function.Function;
  */
 class RedisConnector {
 
+    public static final String PROPERTY_URL = "tomcat.redis.manager.url";
+    public static final String PROPERTY_SENTINEL_GROUP = "tomcat.redis.manager.sentinelGroup";
+
     private static final Log log = LogFactory.getLog(RedisConnector.class);
     private static String url = "redis://localhost:6379";
     private static int connectionTimeout = Protocol.DEFAULT_TIMEOUT;
     private static int soTimeout = Protocol.DEFAULT_TIMEOUT;
+    private static String sentinelGroup = null;
     private static RedisConnector instance;
 
     /**
@@ -47,10 +55,18 @@ class RedisConnector {
      * redis://HOST[:PORT]/DATABASE[?password=PASSWORD]
      * }</pre>
      *
+     * It is possible to specify many semicolon separated urls (to support Redis Sentinel configuration)
      * @param url the url connection string
      */
     public static void setUrl(String url) {
         RedisConnector.url = url;
+    }
+
+    private static String getUrl() {
+        String effectiveUrls = System.getenv(PROPERTY_URL);
+        if (effectiveUrls == null) effectiveUrls = System.getProperty(PROPERTY_URL);
+        if (effectiveUrls == null) effectiveUrls = url;
+        return effectiveUrls;
     }
 
     /**
@@ -86,6 +102,23 @@ class RedisConnector {
     public static int getSoTimeout() {
         return soTimeout;
     }
+
+    /**
+     * The name of the sentinel's master group. By providing this configuration, it enables the Redis Sentinel client
+     * integration.
+     * @param sentinelGroup the name of the sentinel master group.
+     * @see <a href="https://redis.io/docs/manual/sentinel/">High availability with Redis Sentinel</a>
+     */
+    public static void setSentinelGroup(String sentinelGroup) {
+        RedisConnector.sentinelGroup = sentinelGroup;
+    }
+
+    private static String getSentinelGroup() {
+        String effectiveSentinelGroup = System.getenv(PROPERTY_SENTINEL_GROUP);
+        if (effectiveSentinelGroup == null) effectiveSentinelGroup = System.getProperty(PROPERTY_SENTINEL_GROUP);
+        if (effectiveSentinelGroup == null) effectiveSentinelGroup = sentinelGroup;
+        return effectiveSentinelGroup;
+    }
     /**
      * Retrieve an instance that will be used to communicate with the Redis server
      *
@@ -93,7 +126,12 @@ class RedisConnector {
      */
     public static RedisConnector instance() {
         if (instance == null) {
-            instance = new RedisConnector(url, connectionTimeout, soTimeout);
+            String sentinelGroup = getSentinelGroup();
+            if (sentinelGroup == null || sentinelGroup.isBlank()) {
+                instance = new RedisConnector(getUrl(), connectionTimeout, soTimeout);
+            } else {
+                instance = new RedisConnector(getUrl(), sentinelGroup, connectionTimeout, soTimeout);
+            }
         }
         return instance;
     }
@@ -108,28 +146,76 @@ class RedisConnector {
     }
 
 
-    private final JedisPool pool;
+    private final Pool<Jedis> pool;
+
+    private RedisConnector(String urls, String sentinelGroup, int connectionTimeout, int soTimeout) {
+
+        Set<URI> connectionUrls = Stream.of(urls.split(";"))
+            .map(URI::create)
+            .collect(Collectors.toSet());
+
+        validateURI(connectionUrls);
+
+        Set<String> hosts = getSentinelHosts(connectionUrls);
+        int dbIndex = getSentinelDBIndex(connectionUrls);
+        String user = getSentinelUser(connectionUrls);
+        String password = getSentinelPassword(connectionUrls);
+
+        if (log.isDebugEnabled()) {
+            connectionUrls.forEach(u -> log.debug(String.format("connecting to %s sentinel", u)));
+        }
+
+        pool = new JedisSentinelPool(sentinelGroup, hosts, getPoolConfig(), connectionTimeout, soTimeout, user, password, dbIndex);
+    }
 
     private RedisConnector(String url, int connectionTimeout, int soTimeout) {
-        String effectiveUrl = System.getenv("tomcat.redis.manager.url");
-        if (effectiveUrl == null) effectiveUrl = System.getProperty("tomcat.redis.manager.url");
-        if (effectiveUrl == null) effectiveUrl = url;
+        URI uri = URI.create(url);
 
-        URI uri = URI.create(effectiveUrl);
+        if (log.isDebugEnabled()) log.debug(String.format("connecting to %s service", uri));
 
+        pool = new JedisPool(getPoolConfig(), uri, connectionTimeout, soTimeout);
+    }
+
+    private JedisPoolConfig getPoolConfig() {
         JedisPoolConfig jpc = new JedisPoolConfig();
         jpc.setMaxTotal(10);
         jpc.setMaxIdle(3);
         jpc.setMinIdle(1);
         jpc.setLifo(true);
-        jpc.setMinEvictableIdleTime(Duration.ofMillis(10000));
+        jpc.setMinEvictableIdleTime(Duration.of(10, ChronoUnit.SECONDS));
         jpc.setTestOnCreate(true);
         jpc.setTestOnBorrow(true);
+        return jpc;
+    }
 
-        if (log.isDebugEnabled()) log.debug(String.format("connecting to %s service", uri));
+    private Set<String> getSentinelHosts(Set<URI> urls) {
+        return urls.stream()
+            .map(JedisURIHelper::getHostAndPort)
+            .map(HostAndPort::toString)
+            .collect(Collectors.toSet());
+    }
 
-        pool = new JedisPool(jpc, uri, connectionTimeout, soTimeout);
+    private Integer getSentinelDBIndex(Set<URI> urls) {
+        return urls.stream().map(JedisURIHelper::getDBIndex).findFirst().orElse(Protocol.DEFAULT_DATABASE);
+    }
 
+    private String getSentinelUser(Set<URI> urls) {
+        return urls.stream().map(JedisURIHelper::getUser).filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private String getSentinelPassword(Set<URI> urls) {
+        return urls.stream().map(JedisURIHelper::getPassword).filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private void validateURI(Set<URI> urls) {
+        urls.forEach(this::validateURI);
+    }
+
+    private void validateURI(URI url) {
+        if (!JedisURIHelper.isValid(url)) {
+            throw new InvalidURIException(String.format(
+                "Cannot open Redis connection due invalid URI. %s", url));
+        }
     }
 
     /**
