@@ -108,6 +108,16 @@ public class RedisStore extends StoreBase implements LifecycleListener {
         this.activation = Activation.parse(activation);
     }
 
+    /**
+     * The name of the sentinel's master group. By providing this configuration, it enables the Redis Sentinel client
+     * integration.
+     * @param sentinelGroup the name of the sentinel master group.
+     * @see <a href="https://redis.io/docs/manual/sentinel/">High availability with Redis Sentinel</a>
+     */
+    public void setSentinelGroup(String sentinelGroup) {
+        RedisConnector.setSentinelGroup(sentinelGroup);
+    }
+
 
     /**
      * Return the name for this Store, used for logging.
