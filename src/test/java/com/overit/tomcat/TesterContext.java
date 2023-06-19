@@ -27,8 +27,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.management.ObjectName;
-import javax.servlet.*;
-import javax.servlet.descriptor.JspConfigDescriptor;
+import jakarta.servlet.*;
+import jakarta.servlet.descriptor.JspConfigDescriptor;
 
 import org.apache.catalina.AccessLog;
 import org.apache.catalina.Authenticator;
@@ -68,20 +68,10 @@ public class TesterContext implements Context {
 
     private static final Log log = LogFactory.getLog(TesterContext.class);
 
-    private List<String> securityRoles = new ArrayList<>();
+    private final List<String> securityRoles = new ArrayList<>();
     @Override
     public void addSecurityRole(String role) {
         securityRoles.add(role);
-    }
-
-    @Override
-    public void addServletMapping(String pattern, String name) {
-
-    }
-
-    @Override
-    public void addServletMapping(String pattern, String name, boolean jspWildcard) {
-
     }
 
     @Override
@@ -807,6 +797,11 @@ public class TesterContext implements Context {
     }
 
     @Override
+    public InstanceManager createInstanceManager() {
+        return null;
+    }
+
+    @Override
     public Wrapper createWrapper() {
         return null;
     }
@@ -823,11 +818,6 @@ public class TesterContext implements Context {
 
     @Override
     public ErrorPage findErrorPage(int errorCode) {
-        return null;
-    }
-
-    @Override
-    public ErrorPage findErrorPage(String exceptionType) {
         return null;
     }
 
@@ -889,16 +879,6 @@ public class TesterContext implements Context {
     @Override
     public String[] findServletMappings() {
         return null;
-    }
-
-    @Override
-    public String findStatusPage(int status) {
-        return null;
-    }
-
-    @Override
-    public int[] findStatusPages() {
-        return new int[0];
     }
 
     @Override
@@ -1220,6 +1200,16 @@ public class TesterContext implements Context {
     public String getContainerSciFilter() { return null; }
 
     @Override
+    public boolean getParallelAnnotationScanning() {
+        return false;
+    }
+
+    @Override
+    public void setParallelAnnotationScanning(boolean b) {
+
+    }
+
+    @Override
     public ThreadBindingListener getThreadBindingListener() { return null; }
 
     @Override
@@ -1305,5 +1295,45 @@ public class TesterContext implements Context {
     public void setCreateUploadTargets(boolean createUploadTargets) { /* NO-OP */}
     @Override
     public boolean getCreateUploadTargets() { return false; }
+
+    @Override
+    public boolean getAlwaysAccessSession() {
+        return false;
+    }
+
+    @Override
+    public void setAlwaysAccessSession(boolean b) {
+
+    }
+
+    @Override
+    public boolean getContextGetResourceRequiresSlash() {
+        return false;
+    }
+
+    @Override
+    public void setContextGetResourceRequiresSlash(boolean b) {
+
+    }
+
+    @Override
+    public boolean getDispatcherWrapsSameObject() {
+        return false;
+    }
+
+    @Override
+    public void setDispatcherWrapsSameObject(boolean b) {
+
+    }
+
+    @Override
+    public boolean getUseBloomFilterForArchives() {
+        return false;
+    }
+
+    @Override
+    public void setUseBloomFilterForArchives(boolean b) {
+
+    }
 
 }

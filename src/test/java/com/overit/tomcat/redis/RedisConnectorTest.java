@@ -1,51 +1,52 @@
 package com.overit.tomcat.redis;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
 
 import java.util.Set;
 
-public class RedisConnectorTest {
+import static org.junit.jupiter.api.Assertions.*;
 
-    @Before
+class RedisConnectorTest {
+
+    @BeforeEach
     public void setUp() throws Exception {
         RedisConnector.instance().del("*", "string");
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws Exception {
         RedisConnector.dispose();
     }
 
     @Test
-    public void instance() {
+    void instance() {
         RedisConnector instance = RedisConnector.instance();
-        Assert.assertNotNull(instance);
+        assertNotNull(instance);
         RedisConnector instance2 = RedisConnector.instance();
-        Assert.assertSame(instance, instance2);
+        assertSame(instance, instance2);
     }
 
     @Test
-    public void stop() {
+    void stop() {
         RedisConnector instance = RedisConnector.instance();
         instance.stop();
-        Assert.assertThrows(Exception.class, () -> instance.execute(Jedis::ping));
+        assertThrows(Exception.class, () -> instance.execute(Jedis::ping));
     }
 
     @Test
-    public void execute() {
+    void execute() {
         String pong = RedisConnector.instance().execute(Jedis::ping);
-        Assert.assertEquals("PONG", pong);
+        assertEquals("PONG", pong);
     }
 
     @Test
-    public void keys() {
+    void keys() {
         RedisConnector redis = RedisConnector.instance();
-        Assert.assertEquals(0, redis.keys("*", "string").size());
+        assertEquals(0, redis.keys("*", "string").size());
 
         redis.execute(j -> {
             Transaction t = j.multi();
@@ -56,20 +57,20 @@ public class RedisConnectorTest {
             return null;
         });
 
-        Assert.assertEquals(3, redis.keys("*", "string").size());
+        assertEquals(3, redis.keys("*", "string").size());
     }
 
     @Test
-    public void del() {
+    void del() {
         RedisConnector redis = RedisConnector.instance();
         redis.execute(j -> j.set("foo", "bar"));
         Set<String> keys = redis.keys("foo", "string");
-        Assert.assertEquals(1, keys.size());
-        Assert.assertTrue(keys.contains("foo"));
+        assertEquals(1, keys.size());
+        assertTrue(keys.contains("foo"));
 
         redis.del("foo", "string");
         keys = redis.keys("foo", "string");
-        Assert.assertEquals(0, keys.size());
+        assertEquals(0, keys.size());
 
     }
 }

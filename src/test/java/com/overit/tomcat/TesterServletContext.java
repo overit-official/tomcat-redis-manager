@@ -29,8 +29,8 @@ import java.util.Set;
 import org.apache.catalina.core.ApplicationFilterRegistration;
 import org.apache.tomcat.util.descriptor.web.FilterDef;
 
-import javax.servlet.*;
-import javax.servlet.descriptor.JspConfigDescriptor;
+import jakarta.servlet.*;
+import jakarta.servlet.descriptor.JspConfigDescriptor;
 
 public class TesterServletContext implements ServletContext {
 
@@ -108,28 +108,8 @@ public class TesterServletContext implements ServletContext {
     }
 
     @Override
-    public Servlet getServlet(String s) throws ServletException {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public Enumeration<Servlet> getServlets() {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public Enumeration<String> getServletNames() {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
     public void log(String msg) {
         // NOOP
-    }
-
-    @Override
-    public void log(Exception e, String s) {
-
     }
 
     @Override
@@ -215,6 +195,11 @@ public class TesterServletContext implements ServletContext {
     }
 
     @Override
+    public ServletRegistration.Dynamic addJspFile(String s, String s1) {
+        return null;
+    }
+
+    @Override
     public <T extends Servlet> T createServlet(Class<T> c)
         throws ServletException {
         throw new RuntimeException("Not implemented");
@@ -266,7 +251,7 @@ public class TesterServletContext implements ServletContext {
         throw new RuntimeException("Not implemented");
     }
 
-    private SessionCookieConfig sessionCookieConfig = new TesterSessionCookieConfig();
+    private final SessionCookieConfig sessionCookieConfig = new TesterSessionCookieConfig();
     @Override
     public SessionCookieConfig getSessionCookieConfig() {
         return sessionCookieConfig;
@@ -329,6 +314,36 @@ public class TesterServletContext implements ServletContext {
     @Override
     public String getVirtualServerName() {
         return "localhost";
+    }
+
+    @Override
+    public int getSessionTimeout() {
+        return 0;
+    }
+
+    @Override
+    public void setSessionTimeout(int i) {
+
+    }
+
+    @Override
+    public String getRequestCharacterEncoding() {
+        return null;
+    }
+
+    @Override
+    public void setRequestCharacterEncoding(String s) {
+
+    }
+
+    @Override
+    public String getResponseCharacterEncoding() {
+        return null;
+    }
+
+    @Override
+    public void setResponseCharacterEncoding(String s) {
+
     }
 
 }
