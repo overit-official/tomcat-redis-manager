@@ -2,25 +2,23 @@ package com.overit.tomcat.redis;
 
 import com.overit.tomcat.TesterContext;
 import com.overit.tomcat.TesterServletContext;
+import jakarta.servlet.http.HttpSessionActivationListener;
 import org.apache.catalina.LifecycleException;
-import org.apache.catalina.Manager;
 import org.apache.catalina.Session;
 import org.apache.catalina.session.PersistentManager;
-import org.apache.catalina.session.StandardManager;
 import org.apache.catalina.session.StandardSession;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockedStatic;
 import org.mockito.Spy;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
 
-import jakarta.servlet.http.HttpSessionActivationListener;
-import jakarta.servlet.http.HttpSessionEvent;
 import java.io.IOException;
 import java.io.NotSerializableException;
 import java.util.UUID;
@@ -32,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.Mockito.*;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class RedisStoreTest {
     @Spy
     private RedisStore store;
@@ -41,7 +39,7 @@ public class RedisStoreTest {
 
     private PersistentManager manager;
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         TesterContext testerContext = new TesterContext();
         testerContext.setServletContext(new TesterServletContext());
@@ -54,7 +52,7 @@ public class RedisStoreTest {
         store.save(createSession("s2"));
     }
 
-    @After
+    @AfterEach
     public void cleanup() throws Exception {
         RedisConnector.instance().del("*", "*");
         store.clear();
@@ -62,12 +60,12 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void getSize() {
+    void getSize() {
         assertThat(store.getSize()).isEqualTo(2);
     }
 
     @Test
-    public void getSize_whenRedisIsBroken_shouldReturnZero() {
+    void getSize_whenRedisIsBroken_shouldReturnZero() {
         // given
         try (MockedStatic<RedisConnector> ignored = mockStatic(RedisConnector.class)) {
             when(RedisConnector.instance()).thenReturn(null);
@@ -81,12 +79,12 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void clear() {
+    void clear() {
         store.clear();
         assertThat(store.getSize()).isZero();
     }
     @Test
-    public void clear_whenRedisIsBroken_shouldNotThrows() {
+    void clear_whenRedisIsBroken_shouldNotThrows() {
         // given
         try (MockedStatic<RedisConnector> ignored = mockStatic(RedisConnector.class)) {
             when(RedisConnector.instance()).thenReturn(null);
@@ -97,14 +95,14 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void keys() {
+    void keys() {
         assertThat(store.keys()).containsExactlyInAnyOrder("s1", "s2");
         store.clear();
         assertThat(store.keys()).isEmpty();
     }
 
     @Test
-    public void expiredKeys_givenAnExpiredSession_shouldReturnItsId() throws InterruptedException, IOException {
+    void expiredKeys_givenAnExpiredSession_shouldReturnItsId() throws InterruptedException, IOException {
         // given
         String expected = UUID.randomUUID().toString();
         Session session = createSession(expected);
@@ -120,7 +118,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void expiredKeys_givenNoExpiredSession_shouldReturnEmptyArray() {
+    void expiredKeys_givenNoExpiredSession_shouldReturnEmptyArray() {
         // given
         String expected = UUID.randomUUID().toString();
         Session session = createSession("expired");
@@ -133,36 +131,37 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void remove() {
+    void remove() {
         store.remove("s1");
         assertThat(store.getSize()).isEqualTo(1);
     }
 
     @Test
-    public void add() throws IOException {
+    void add() throws IOException {
         store.save(createSession("s3"));
         assertThat(store.getSize()).isEqualTo(3);
         assertThat(store.keys()).containsExactlyInAnyOrder("s1", "s2", "s3");
     }
 
-    @Test(expected = NotSerializableException.class)
-    public void save_nonSerializableSession_shouldThrows() throws IOException {
+    @Test
+    void save_nonSerializableSession_shouldThrows() throws IOException {
         // given
         Session session = createSession("s");
         session.getSession().setAttribute("notserializable", new Object());
 
         // when()
-        store.save(session);
+        Assertions.assertThatExceptionOfType(NotSerializableException.class)
+            .isThrownBy(() -> store.save(session));
     }
 
     @Test
-    public void load() {
+    void load() {
         Session s2 = store.load("s2");
         assertThat(s2.getIdInternal()).isEqualTo("s2");
     }
 
     @Test
-    public void load_havingNoStoredSessionAndNoOneCanDrainIt_shouldReturnNullIn2Seconds() {
+    void load_havingNoStoredSessionAndNoOneCanDrainIt_shouldReturnNullIn2Seconds() {
         // given
         long start = System.currentTimeMillis();
 
@@ -176,7 +175,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void load_havingNoStoredSessionButSomeoneThatCanDrainIt_shouldReturnNotNull() throws Exception {
+    void load_havingNoStoredSessionButSomeoneThatCanDrainIt_shouldReturnNotNull() throws Exception {
         // give
         String sessionId = "s4";
         AtomicLong start = new AtomicLong();
@@ -195,7 +194,7 @@ public class RedisStoreTest {
 
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldCallTheMethod() throws InterruptedException {
+    void onSessionDrainRequest_whenReceiveARequestNotification_shouldCallTheMethod() throws InterruptedException {
         // when
         store.subscribeToSessionDrainRequests();
         store.sendSessionDrainingRequest("");
@@ -206,7 +205,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotificationOfUnknownSession_shouldNotWriteAnything() {
+    void onSessionDrainRequest_whenReceiveARequestNotificationOfUnknownSession_shouldNotWriteAnything() {
         // when
         store.sendSessionDrainingRequest("unknown");
 
@@ -217,7 +216,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldAddResponseIntoRedisEntry() throws InterruptedException {
+    void onSessionDrainRequest_whenReceiveARequestNotification_shouldAddResponseIntoRedisEntry() throws InterruptedException {
         // when
         store.sendSessionDrainingRequest("s1");
         TimeUnit.MILLISECONDS.sleep(100);
@@ -229,7 +228,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException {
+    void onSessionDrainRequest_whenReceiveARequestNotification_shouldSaveTheSession() throws InterruptedException {
         // when
         store.subscribeToSessionDrainRequests();
         createSession("sd");
@@ -242,7 +241,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainingRequest_whenReceiveARequestForAProcessingSession_shouldWaitTheProcessingComplete() throws IOException {
+    void onSessionDrainingRequest_whenReceiveARequestForAProcessingSession_shouldWaitTheProcessingComplete() throws IOException {
         // give
         Session session = createSession("s3");
         simulateTaskProcessingOnSession(session);
@@ -256,7 +255,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainingRequest_whenReceiveARequestForUnknownSession_shouldNotCallTheLoadMethod() {
+    void onSessionDrainingRequest_whenReceiveARequestForUnknownSession_shouldNotCallTheLoadMethod() {
         // given
 
         // when
@@ -266,7 +265,7 @@ public class RedisStoreTest {
         verify(store, never()).load(any());
     }
     @Test
-    public void onSessionDrainingRequest_whenReceiveARequestForUnknownSession_shouldBeCalledOnce() throws InterruptedException {
+    void onSessionDrainingRequest_whenReceiveARequestForUnknownSession_shouldBeCalledOnce() throws InterruptedException {
 
         // when
         store.onSessionDrainRequest("unknown");
@@ -277,7 +276,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void onSessionDrainingRequest_receivedKnownSessionId_shouldPassivateAndSaveIt() throws IOException {
+    void onSessionDrainingRequest_receivedKnownSessionId_shouldPassivateAndSaveIt() throws IOException {
         // given
         Session s = createSession("ss");
         HttpSessionActivationListener listener = mock(HttpSessionActivationListener.class);
@@ -291,7 +290,7 @@ public class RedisStoreTest {
         verify(store).save(s);
     }
     @Test
-    public void onSessionDrainingRequest_receivedKnownSessionId_shouldInvalidateTheSession() {
+    void onSessionDrainingRequest_receivedKnownSessionId_shouldInvalidateTheSession() {
         // given
         Session s = createSession("s");
 
@@ -303,7 +302,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void setPrefix_givenAString_shouldSetIt() {
+    void setPrefix_givenAString_shouldSetIt() {
         // given
         String expected = UUID.randomUUID().toString();
 
@@ -315,12 +314,12 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void getStoreName_shouldReturnTheExceptedConstant() {
+    void getStoreName_shouldReturnTheExceptedConstant() {
         assertThat(store.getStoreName()).isEqualTo(RedisStore.STORE_NAME);
     }
 
     @Test
-    public void setConnectionTimeout_givenAValidNumber_shouldSetTheRedisConnectorTimeout() {
+    void setConnectionTimeout_givenAValidNumber_shouldSetTheRedisConnectorTimeout() {
         // given
         int expected = 123456789;
 
@@ -332,7 +331,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void setSoTimeout_givenAValidNumber_shouldSetTheRedisConnectorTimeout() {
+    void setSoTimeout_givenAValidNumber_shouldSetTheRedisConnectorTimeout() {
         // given
         int expected = 123456789;
 
@@ -344,7 +343,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void stopInternal_shouldStopRedisConnectorAndSubscriber() throws LifecycleException {
+    void stopInternal_shouldStopRedisConnectorAndSubscriber() throws LifecycleException {
         // given
         store.start();
         RedisConnector connector = mock(RedisConnector.class);
@@ -361,7 +360,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    public void stopInternal_shouldUnsubscribeAllSubscriber() throws LifecycleException {
+    void stopInternal_shouldUnsubscribeAllSubscriber() throws LifecycleException {
         // given
         store.start();
         RedisConnector connector = mock(RedisConnector.class);
