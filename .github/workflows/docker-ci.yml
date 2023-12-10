@@ -13,7 +13,7 @@ jobs:
     
     - id: checkout_code
       name: Checkout to source code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       
     - id: jdk_setup
       name: Set up JDK 17 for the tests
@@ -43,7 +43,7 @@ jobs:
 
     - id: checkout_code
       name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - id: login_docker_hub
       name: Login to DockerHub
@@ -88,7 +88,7 @@ jobs:
     
       - id: checkout_code
         name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - id: jdk_setup
         name: Set up JDK 17 for the tests
