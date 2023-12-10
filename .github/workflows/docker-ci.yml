@@ -17,7 +17,7 @@ jobs:
       
     - id: jdk_setup
       name: Set up JDK 17 for the tests
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
@@ -92,7 +92,7 @@ jobs:
 
       - id: jdk_setup
         name: Set up JDK 17 for the tests
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
