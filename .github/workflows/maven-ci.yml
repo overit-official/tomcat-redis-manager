@@ -5,6 +5,9 @@ jobs:
   mvn-tests:
     name: "Run maven compile and tests"
     runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            redis-version: [6, 7]
     steps:
 
     - name: Checkout sources
@@ -20,7 +23,7 @@ jobs:
     - name: Start Redis
       uses: supercharge/redis-github-action@1.7.0
       with:
-        redis-version: 6
+        redis-version: ${{ matrix.redis-version }}
 
     - name: Maven test
       run: mvn -B test

@@ -9,6 +9,9 @@ jobs:
   mvn-test:
     name: Maven Compile, Unit and Integration Tests
     runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            redis-version: [6, 7]
     steps:
     
     - id: checkout_code
@@ -27,7 +30,7 @@ jobs:
       name: Start Redis for the integration tests
       uses: supercharge/redis-github-action@1.7.0
       with:
-        redis-version: 6
+        redis-version: ${{ matrix.redis-version }}
         
     - id: mvn_test
       name: Maven test
