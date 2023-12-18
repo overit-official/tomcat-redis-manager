@@ -18,5 +18,5 @@ COPY src ./src
 COPY pom.xml .
 RUN mvn clean package -DskipTests
 
-FROM tomcat:10.1.16-jre17-temurin-jammy
+FROM tomcat:10.1.17-jre17-temurin-jammy
 COPY --from=build /tmp/target/tomcat-redis-manager-*-shaded.jar $CATALINA_HOME/lib
