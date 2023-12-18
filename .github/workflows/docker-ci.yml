@@ -28,7 +28,7 @@ jobs:
         
     - id: redis_setup
       name: Start Redis for the integration tests
-      uses: supercharge/redis-github-action@1.7.0
+      uses: supercharge/redis-github-action@1.8.0
       with:
         redis-version: ${{ matrix.redis-version }}
         
