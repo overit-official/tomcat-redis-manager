@@ -305,22 +305,22 @@ public class TesterContext implements Context {
     }
 
     @Override
-    public void init() throws LifecycleException {
+    public void init() {
         // NO-OP
     }
 
     @Override
-    public void start() throws LifecycleException {
+    public void start() {
         // NO-OP
     }
 
     @Override
-    public void stop() throws LifecycleException {
+    public void stop() {
         // NO-OP
     }
 
     @Override
-    public void destroy() throws LifecycleException {
+    public void destroy() {
         // NO-OP
     }
 

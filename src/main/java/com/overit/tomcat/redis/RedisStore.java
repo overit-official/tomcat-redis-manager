@@ -31,11 +31,11 @@ public class RedisStore extends StoreBase implements LifecycleListener {
         MANUAL;
 
         static Activation parse(String activation) {
-            switch (activation.trim().toLowerCase()) {
-                case "manual": return MANUAL;
-                case "auto": return AUTO;
-                default: throw new IllegalArgumentException("unsupported activation mode");
-            }
+            return switch (activation.trim().toLowerCase()) {
+                case "manual" -> MANUAL;
+                case "auto" -> AUTO;
+                default -> throw new IllegalArgumentException("unsupported activation mode");
+            };
         }
     }
     private static final Log log = LogFactory.getLog(RedisStore.class);
@@ -420,8 +420,7 @@ public class RedisStore extends StoreBase implements LifecycleListener {
     }
 
     private void passivateAndDrain(Session session) throws IOException {
-        if (session instanceof StandardSession) {
-            StandardSession standardSession = ((StandardSession) session);
+        if (session instanceof StandardSession standardSession) {
             standardSession.passivate();
             save(standardSession);
             markSessionAsDrained(standardSession);

@@ -13,12 +13,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class RedisConnectorTest {
 
     @BeforeEach
-    public void setUp() throws Exception {
+    public void setUp() {
         RedisConnector.instance().del("*", "string");
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    public void tearDown() {
         RedisConnector.dispose();
     }
 

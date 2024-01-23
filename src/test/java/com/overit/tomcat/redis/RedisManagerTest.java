@@ -36,7 +36,7 @@ public class RedisManagerTest {
     }
 
     @AfterAll
-    public static void shutdown() throws Exception {
+    public static void shutdown() {
         RedisConnector.dispose();
     }
 

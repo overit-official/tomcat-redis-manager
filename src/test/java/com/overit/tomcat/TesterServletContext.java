@@ -86,7 +86,7 @@ public class TesterServletContext implements ServletContext {
     }
 
     @Override
-    public URL getResource(String path) throws MalformedURLException {
+    public URL getResource(String path) {
         return null;
     }
 
@@ -200,8 +200,7 @@ public class TesterServletContext implements ServletContext {
     }
 
     @Override
-    public <T extends Servlet> T createServlet(Class<T> c)
-        throws ServletException {
+    public <T extends Servlet> T createServlet(Class<T> c) {
         throw new RuntimeException("Not implemented");
     }
 
@@ -236,8 +235,7 @@ public class TesterServletContext implements ServletContext {
     }
 
     @Override
-    public <T extends Filter> T createFilter(Class<T> c)
-        throws ServletException {
+    public <T extends Filter> T createFilter(Class<T> c) {
         throw new RuntimeException("Not implemented");
     }
 
@@ -291,8 +289,7 @@ public class TesterServletContext implements ServletContext {
     }
 
     @Override
-    public <T extends EventListener> T createListener(Class<T> c)
-        throws ServletException {
+    public <T extends EventListener> T createListener(Class<T> c) {
         throw new RuntimeException("Not implemented");
     }
 

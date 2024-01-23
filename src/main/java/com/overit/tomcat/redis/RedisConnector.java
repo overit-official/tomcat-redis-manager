@@ -182,7 +182,7 @@ class RedisConnector {
         jpc.setMaxIdle(3);
         jpc.setMinIdle(1);
         jpc.setLifo(true);
-        jpc.setMinEvictableIdleTime(Duration.of(10, ChronoUnit.SECONDS));
+        jpc.setMinEvictableIdleDuration(Duration.of(10, ChronoUnit.SECONDS));
         jpc.setTestOnCreate(true);
         jpc.setTestOnBorrow(true);
         return jpc;
