@@ -94,7 +94,7 @@ public class TesterContext implements Context {
         securityRoles.remove(role);
     }
 
-    private List<SecurityConstraint> securityConstraints = new ArrayList<>();
+    private final List<SecurityConstraint> securityConstraints = new ArrayList<>();
     @Override
     public void addConstraint(SecurityConstraint constraint) {
         securityConstraints.add(constraint);
@@ -413,6 +413,16 @@ public class TesterContext implements Context {
     @Override
     public void setUseHttpOnly(boolean useHttpOnly) {
         // NO-OP
+    }
+
+    @Override
+    public boolean getUsePartitioned() {
+        return false;
+    }
+
+    @Override
+    public void setUsePartitioned(boolean b) {
+
     }
 
     @Override
