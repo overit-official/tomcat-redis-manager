@@ -144,7 +144,7 @@ public class RedisStoreTest {
     }
 
     @Test
-    void save_nonSerializableSession_shouldThrows() throws IOException {
+    void save_nonSerializableSession_shouldThrows() {
         // given
         Session session = createSession("s");
         session.getSession().setAttribute("notserializable", new Object());

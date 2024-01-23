@@ -151,11 +151,8 @@ public class RedisManager extends ManagerBase {
      * to the appropriate persistence mechanism, if any.  If persistence is not
      * supported, this method returns without doing anything.
      *
-     * @throws ClassNotFoundException if a serialized class cannot be
-     *                                found during the reload
-     * @throws IOException            if an input/output error occurs
      */
-    protected void doLoad() throws ClassNotFoundException, IOException {
+    protected void doLoad() {
         // Initialize our internal data structures
         sessions.clear();
 
@@ -246,9 +243,8 @@ public class RedisManager extends ManagerBase {
      * mechanism, if any.  If persistence is not supported, this method
      * returns without doing anything.
      *
-     * @throws IOException if an input/output error occurs
      */
-    protected void doUnload() throws IOException {
+    protected void doUnload() {
         if (sessions.isEmpty()) {
             return; // nothing to do
         }

@@ -168,7 +168,7 @@ git config --global alias.lasttag '!f() { git fetch -tp &>/dev/null; git tag -l 
 
 ### git release
 
-This alias requires `git lasttag` alias to be added among yout git aliases.
+This alias requires `git lasttag` alias to be added among your git aliases.
 It allows you to create a new release tag (it doesn't push it to the associated remote) increasing the 
 patch, minor or major version number according to the flag you provide in input.
 

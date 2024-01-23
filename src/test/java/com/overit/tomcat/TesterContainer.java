@@ -201,22 +201,22 @@ public class TesterContainer implements Container {
     }
 
     @Override
-    public void init() throws LifecycleException {
+    public void init() {
 
     }
 
     @Override
-    public void start() throws LifecycleException {
+    public void start() {
 
     }
 
     @Override
-    public void stop() throws LifecycleException {
+    public void stop() {
 
     }
 
     @Override
-    public void destroy() throws LifecycleException {
+    public void destroy() {
 
     }
 
