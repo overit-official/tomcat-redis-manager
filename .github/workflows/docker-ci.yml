@@ -78,10 +78,9 @@ jobs:
         # |---------|-----------------------|
         # | v1.2.3  | 1, 1.2, 1.2.3, latest |
         
-        docker build . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest
-
-        # push all generated tags
-        docker push -a $IMAGE_NAME
+        # build multiplatform image and push all generated tags
+        docker buildx create --name mybuilder --use
+        docker buildx build --platform linux/amd64,linux/arm64 . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest --push
         
   github-release:
     name: Create Git Release
