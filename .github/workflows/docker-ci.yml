@@ -77,7 +77,7 @@ jobs:
         
         # build multiplatform image and push all generated tags
         docker buildx create --name mybuilder --use
-        docker buildx build --platform linux/amd64,linux/arm64 . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --tag $IMAGE_NAME:latest --push
+        docker buildx build --platform linux/amd64,linux/arm64 . --file ./Dockerfile --tag $IMAGE_NAME:$MAJOR_TAG --tag $IMAGE_NAME:$MINOR_TAG --tag $IMAGE_NAME:$PATCH_TAG --push
 
   github-release:
     name: Create Git Release
