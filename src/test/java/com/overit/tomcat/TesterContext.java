@@ -1337,6 +1337,16 @@ public class TesterContext implements Context {
     }
 
     @Override
+    public boolean getSuspendWrappedResponseAfterForward() {
+        return false;
+    }
+
+    @Override
+    public void setSuspendWrappedResponseAfterForward(boolean b) {
+
+    }
+
+    @Override
     public boolean getUseBloomFilterForArchives() {
         return false;
     }
