@@ -12,7 +12,7 @@
 # docker tag $repo:latest $repo:$maj.$min.$patch
 # docker push $repo:$maj.$min.$patch
 
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3-eclipse-temurin-23 AS build
 WORKDIR /tmp
 COPY src ./src
 COPY pom.xml .
