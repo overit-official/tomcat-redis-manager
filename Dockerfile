@@ -18,7 +18,7 @@ COPY src ./src
 COPY pom.xml .
 RUN mvn clean package -DskipTests
 
-FROM tomcat:10.1.26-jre17-temurin-jammy
+FROM tomcat:11.0.0-jre17-temurin-jammy
 COPY --from=build /tmp/target/tomcat-redis-manager-*-shaded.jar $CATALINA_HOME/lib
 ENV JAVA_OPTS="--add-opens java.base/java.lang.invoke=ALL-UNNAMED \
                --add-opens java.base/java.util.regex=ALL-UNNAMED \
